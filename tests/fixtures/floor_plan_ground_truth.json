@@ -1,0 +1,42 @@
+{
+  "description": "floor_plan_with_labels.svg 的 Ground Truth 数据",
+  "file": "floor_plan_with_labels.svg",
+  "expected": {
+    "primitive_count": 13,
+    "line_count": 13,
+    "rooms": [
+      {
+        "name": "客厅",
+        "approximate_area": 37500.0
+      },
+      {
+        "name": "卧室 1",
+        "approximate_area": 45000.0
+      },
+      {
+        "name": "卧室 2",
+        "approximate_area": 60000.0
+      },
+      {
+        "name": "厨房",
+        "approximate_area": 37500.0
+      }
+    ],
+    "doors": [
+      {
+        "label": "D1",
+        "position": [300, 300]
+      }
+    ],
+    "windows": [
+      {
+        "label": "W1",
+        "position": [240, 50]
+      },
+      {
+        "label": "W2",
+        "position": [560, 50]
+      }
+    ]
+  }
+}

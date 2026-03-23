@@ -1,0 +1,88 @@
+# ======================
+# Rust / Cargo
+# ======================
+/target/
+**/target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
+
+# ======================
+# Build artifacts
+# ======================
+**/build/
+*.so
+*.dylib
+*.dll
+*.exe
+
+# ======================
+# IDE / Editor
+# ======================
+.idea/
+.vscode/
+*.swp
+*.swo
+*.swn
+*~
+.DS_Store
+Thumbs.db
+
+# ======================
+# Environment & Secrets
+# ======================
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# ======================
+# Logs
+# ======================
+*.log
+logs/
+
+# ======================
+# Test output
+# ======================
+/tmp/
+test_output/
+*.dxf
+*.png
+*.svg
+*.jpg
+*.jpeg
+*.gif
+*.webp
+
+# ======================
+# Coverage
+# ======================
+coverage/
+*.gcda
+*.gcno
+*.gcov
+tarpaulin-report.html
+cobertura.xml
+lcov.info
+
+# ======================
+# Documentation
+# ======================
+doc/_build/
+**/__pycache__/
+
+# ======================
+# Examples output
+# ======================
+examples/output/
+examples/results/
+
+# ======================
+# Temporary files
+# ======================
+*.tmp
+*.temp
+*.bak
+*~

@@ -1,0 +1,105 @@
+{
+  "perception_templates": [
+    {
+      "name": "wall_detection",
+      "template": "首先，我观察到图像外部有一个闭合的多边形轮廓，由坐标 {coords} 组成，这是{element_type}。",
+      "variables": ["coords", "element_type"]
+    },
+    {
+      "name": "room_detection",
+      "template": "在这个轮廓内部，坐标区域 {bbox} 被四面墙包围，且包含一个宽度为{width}的缺口（坐标{door_coords}），这符合'带门的{room_type}'的拓扑特征。",
+      "variables": ["bbox", "width", "door_coords", "room_type"]
+    },
+    {
+      "name": "door_detection",
+      "template": "在墙体坐标{wall_coords}上，我发现了一个宽度为{width}的缺口，位置在{position}，这符合门的几何特征。",
+      "variables": ["wall_coords", "width", "position"]
+    },
+    {
+      "name": "window_detection",
+      "template": "在墙体坐标{wall_coords}上，我发现了双线结构，间距为{gap}，这符合窗户的几何特征。",
+      "variables": ["wall_coords", "gap"]
+    }
+  ],
+  "reasoning_templates": [
+    {
+      "name": "area_calculation",
+      "template": "查找{element}边界->获取顶点坐标->使用鞋带公式计算面积->Sum(x_i * y_{{i+1}} - x_{{i+1}} * y_i) / 2 = {result}",
+      "variables": ["element", "result"]
+    },
+    {
+      "name": "dimension_calculation",
+      "template": "查找{element}边界->左墙 x 坐标为{x1}，右墙 x 坐标为{x2}->计算宽度{x2}-{x1}={width}",
+      "variables": ["element", "x1", "x2", "width"]
+    },
+    {
+      "name": "room_classification",
+      "template": "房间面积为{area}，门的数量为{doors}，根据规则{rule}，判断为{room_type}",
+      "variables": ["area", "doors", "rule", "room_type"]
+    },
+    {
+      "name": "loop_detection",
+      "template": "检测所有闭合回路->排除外边界->统计内部回路数量->共{count}个房间",
+      "variables": ["count"]
+    },
+    {
+      "name": "parallel_check",
+      "template": "检查墙体方向->计算方向向量->判断是否平行->角度差{angle_diff}度，{result}",
+      "variables": ["angle_diff", "result"]
+    },
+    {
+      "name": "perpendicular_check",
+      "template": "检查相邻墙体->计算点积->判断是否垂直->角度{angle}度，{result}",
+      "variables": ["angle", "result"]
+    }
+  ],
+  "summary_templates": [
+    {
+      "name": "room_count",
+      "template": "该户型图共有{count}个房间。",
+      "variables": ["count"]
+    },
+    {
+      "name": "total_area",
+      "template": "总面积为{total}平方单位。各房间面积：{details}",
+      "variables": ["total", "details"]
+    },
+    {
+      "name": "dimension",
+      "template": "建筑总宽度为{width}单位（从 x={x_min}到 x={x_max}），总高度为{height}单位。",
+      "variables": ["width", "x_min", "x_max", "height"]
+    },
+    {
+      "name": "structure_analysis",
+      "template": "检测到{rooms}个房间，{doors}个门，{windows}个窗户。外边界由{boundary_points}个点组成。",
+      "variables": ["rooms", "doors", "windows", "boundary_points"]
+    }
+  ],
+  "qa_templates": {
+    "area": {
+      "question": "{element}的面积是多少？",
+      "answer": "<thinking>{thinking}</thinking>{element}的面积是{value}平方单位。"
+    },
+    "dimension": {
+      "question": "{element}的{dimension}是多少？",
+      "answer": "<thinking>{thinking}</thinking>{element}的{dimension}是{value}单位。"
+    },
+    "count": {
+      "question": "图中有多少个{element}？",
+      "answer": "<thinking>{thinking}</thinking>图中共有{count}个{element}。"
+    },
+    "position": {
+      "question": "{element}的中心位置在哪里？",
+      "answer": "<thinking>{thinking}</thinking>{element}的中心位置在坐标[{x}, {y}]。"
+    },
+    "relation": {
+      "question": "哪个{element}的{attribute}最大？",
+      "answer": "<thinking>{thinking}</thinking>{result}的{attribute}最大。"
+    }
+  },
+  "thinking_format": {
+    "start_tag": "<thinking>",
+    "end_tag": "</thinking>",
+    "sections": ["perception", "reasoning", "calculation", "conclusion"]
+  }
+}

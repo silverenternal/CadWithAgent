@@ -1,0 +1,98 @@
+[package]
+name = "cadagent"
+version = "0.1.0"
+edition = "2021"
+authors = ["Tokitai Team"]
+description = "基于 Rust tokitai 库的 CAD 几何处理工具链，支持小参数模型驱动的标准化管线"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/tokitai/cadagent"
+keywords = ["cad", "dxf", "svg", "geometry", "ai"]
+categories = ["graphics", "mathematics", "parsing"]
+
+[lib]
+name = "cadagent"
+path = "src/lib.rs"
+
+[[bin]]
+name = "cadagent-cli"
+path = "src/main.rs"
+
+[dependencies]
+# 核心依赖 - tokitai: AI 工具集成系统
+tokitai = "0.4"
+tokitai-core = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+anyhow = "1.0"
+
+# SVG 处理
+svg = "0.17"
+roxmltree = "0.20"  # 可靠的 XML 解析，支持命名空间和嵌套结构
+# resvg 和 tiny-skia 暂时不需要，因为 SVG 渲染功能暂未实现
+# resvg = "0.43"
+# tiny-skia = "0.11"
+
+# DXF 处理
+dxf = "0.6.1"
+
+# 几何计算
+nalgebra = "0.33"
+geo = "0.28"
+rstar = "0.12"
+
+# 并行处理
+rayon = "1.10"
+
+# 图像处理
+image = "0.25"
+
+# CLI
+clap = { version = "4.5", features = ["derive"] }
+
+# 日志
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# HTTP 客户端（VLM API 调用）
+reqwest = { version = "0.12", features = ["json"] }
+
+# 异步支持
+tokio = { version = "1.0", features = ["full"] }
+
+# LRU 缓存（VLM 响应缓存）
+lru = "0.12"
+
+[dev-dependencies]
+tempfile = "3.10"
+pretty_assertions = "1.4"
+criterion = "0.5"
+
+[[bench]]
+name = "geometry_bench"
+harness = false
+
+[[bench]]
+name = "reasoning_bench"
+harness = false
+
+[features]
+default = []
+full = []
+
+[[example]]
+name = "basic_usage"
+path = "examples/basic_usage.rs"
+
+[[example]]
+name = "pipeline"
+path = "examples/pipeline.rs"
+
+[[example]]
+name = "cot_generation"
+path = "examples/cot_generation.rs"
+
+[[example]]
+name = "vlm_inference"
+path = "examples/vlm_inference.rs"

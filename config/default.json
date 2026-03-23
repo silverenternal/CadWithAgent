@@ -1,0 +1,67 @@
+{
+  "project": {
+    "name": "CadAgent",
+    "version": "0.1.0"
+  },
+  "geo_cot_templates": {
+    "perception": {
+      "pattern": "首先，我观察到图像{position}有一个{element_type}，由{vertex_count}个顶点组成，坐标依次为：{coords}。"
+    },
+    "reasoning": {
+      "pattern": "根据{rule}，我分析{observation}，得出结论：{conclusion}。"
+    },
+    "summary": {
+      "pattern": "综上所述，{summary}。"
+    }
+  },
+  "room_type_rules": [
+    {
+      "condition": "area < 50000 AND doors <= 1",
+      "room_type": "卫生间",
+      "description": "小面积且门少的房间"
+    },
+    {
+      "condition": "50000 <= area < 150000 AND doors = 1",
+      "room_type": "卧室",
+      "description": "中等面积的独立房间"
+    },
+    {
+      "condition": "150000 <= area < 300000",
+      "room_type": "客厅",
+      "description": "较大面积的公共区域"
+    },
+    {
+      "condition": "area >= 300000",
+      "room_type": "大厅",
+      "description": "超大面积的主厅"
+    }
+  ],
+  "measurement_settings": {
+    "distance_tolerance": 1.0,
+    "angle_tolerance": 1.0,
+    "default_door_width": 900.0,
+    "default_window_width": 1200.0,
+    "default_window_height": 1500.0
+  },
+  "export_settings": {
+    "dxf": {
+      "precision": 4,
+      "unit": "mm"
+    },
+    "json": {
+      "pretty": true,
+      "include_metadata": true
+    }
+  },
+  "model_settings": {
+    "supported_models": [
+      "Qwen2.5-VL",
+      "InternVL2",
+      "LLaVA"
+    ],
+    "default_resolution": 1024,
+    "max_resolution": 2048,
+    "enable_cot": true,
+    "enable_tool_calling": true
+  }
+}

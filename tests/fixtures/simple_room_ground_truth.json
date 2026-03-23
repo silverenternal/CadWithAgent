@@ -1,0 +1,20 @@
+{
+  "description": "simple_room.svg 的 Ground Truth 数据",
+  "file": "simple_room.svg",
+  "expected": {
+    "primitive_count": 4,
+    "line_count": 4,
+    "rooms": [
+      {
+        "name": "房间 1",
+        "vertices": [[0, 0], [100, 0], [100, 100], [0, 100]],
+        "area": 10000.0
+      }
+    ],
+    "geometric_relations": {
+      "parallel_pairs": 2,
+      "perpendicular_pairs": 4,
+      "connected_pairs": 4
+    }
+  }
+}
