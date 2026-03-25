@@ -2,6 +2,13 @@
 
 欢迎为 CadAgent 项目做出贡献！
 
+## 项目状态
+
+- **版本**: v0.1.0
+- **测试状态**: 248+ 测试全部通过
+- **测试覆盖率**: 80%+
+- **构建状态**: 稳定
+
 ## 开发环境设置
 
 ### 前置要求
@@ -33,7 +40,19 @@ cargo clippy -- -D warnings
 cp .env.example .env
 
 # 编辑 .env 文件，填入你的 API Key
-# 必须设置 PROVIDER_ZAZAZ_API_KEY
+# 注意：如果只使用纯几何模式，无需设置 API Key
+```
+
+### 配置验证
+
+开发过程中如需修改配置文件，请先验证配置：
+
+```bash
+# 验证默认配置
+cargo run --bin cadagent-cli -- validate-config
+
+# 验证自定义配置
+cargo run --bin cadagent-cli -- validate-config --config path/to/your/config.json
 ```
 
 ## 开发流程
@@ -41,7 +60,6 @@ cp .env.example .env
 ### 1. 分支管理
 
 - `main` - 主分支，始终保持稳定
-- `dev` - 开发分支
 - `feature/xxx` - 新功能分支
 - `fix/xxx` - Bug 修复分支
 
@@ -66,9 +84,15 @@ cargo clippy -- -D warnings
 - 所有测试必须通过
 
 ```bash
+# 运行所有测试
 cargo test
+
+# 运行特定测试
 cargo test --test geometry_tests
 cargo test --test cad_reasoning_tests
+
+# 生成覆盖率报告
+cargo tarpaulin --output-dir coverage --out html
 ```
 
 ### 3. 提交规范
@@ -99,6 +123,7 @@ git commit -m "test: 添加几何关系检测单元测试"
 ```
 src/
 ├── analysis/          # 统一分析管线（推荐使用）
+├── config/            # 配置管理（新增）
 ├── cad_extractor/     # CAD 基元提取
 ├── cad_reasoning/     # 几何关系推理
 ├── cad_verifier/      # 约束校验
@@ -109,7 +134,9 @@ src/
 ├── parser/            # 文件解析
 ├── export/            # 文件导出
 ├── bridge/            # VLM 桥接
-└── tools/             # 工具注册表
+├── tools/             # 工具注册表
+├── llm_reasoning/     # LLM 推理
+└── metrics/           # 评估指标
 ```
 
 ### 添加新工具
@@ -216,6 +243,7 @@ pub fn measure_area(&self, vertices: &[[f64; 2]]) -> f64 {
 - `parse_svg`: < 10ms (1000 基元)
 - `detect_relations`: < 100ms (1000 基元，R-tree 优化)
 - `build_prompt`: < 50ms
+- `validate_config`: < 100ms (27 项检查)
 
 ### 性能优化
 

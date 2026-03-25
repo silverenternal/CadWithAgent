@@ -19,7 +19,7 @@ fn main() -> anyhow::Result<()> {
             [800.0, 600.0],
             [0.0, 600.0],
         ])),
-        
+
         // 房间 1: 客厅
         Primitive::Polygon(Polygon::from_coords(vec![
             [50.0, 50.0],
@@ -27,7 +27,7 @@ fn main() -> anyhow::Result<()> {
             [400.0, 350.0],
             [50.0, 350.0],
         ])),
-        
+
         // 房间 2: 卧室
         Primitive::Polygon(Polygon::from_coords(vec![
             [400.0, 50.0],
@@ -35,7 +35,7 @@ fn main() -> anyhow::Result<()> {
             [750.0, 350.0],
             [400.0, 350.0],
         ])),
-        
+
         // 房间 3: 厨房
         Primitive::Polygon(Polygon::from_coords(vec![
             [50.0, 350.0],
@@ -43,7 +43,7 @@ fn main() -> anyhow::Result<()> {
             [400.0, 550.0],
             [50.0, 550.0],
         ])),
-        
+
         // 房间 4: 卫生间
         Primitive::Polygon(Polygon::from_coords(vec![
             [400.0, 350.0],
@@ -51,7 +51,7 @@ fn main() -> anyhow::Result<()> {
             [750.0, 550.0],
             [400.0, 550.0],
         ])),
-        
+
         // 门标记
         Primitive::Text {
             content: "门".to_string(),
@@ -69,9 +69,9 @@ fn main() -> anyhow::Result<()> {
 
     // 1. 生成不同任务的 Geo-CoT 数据
     println!("1. 生成不同任务的 Geo-CoT 数据\n");
-    
+
     let generator = GeoCotGenerator::new();
-    
+
     let tasks = vec![
         "计算所有房间的面积",
         "检测房间的数量和位置",
@@ -83,7 +83,7 @@ fn main() -> anyhow::Result<()> {
     for task in &tasks {
         println!("任务：{}", task);
         let cot_data = generator.generate(&floor_plan, task);
-        
+
         println!("  <thinking>");
         println!("    {}", cot_data.perception.replace('\n', "\n    "));
         println!("    {}", cot_data.reasoning.replace('\n', "\n    "));
@@ -93,12 +93,12 @@ fn main() -> anyhow::Result<()> {
 
     // 2. 生成 QA 数据集
     println!("2. 生成 QA 数据集\n");
-    
+
     let qa_generator = QaGenerator::new();
     let qa_pairs = qa_generator.generate_all(&floor_plan);
-    
+
     println!("生成了 {} 个问答对:\n", qa_pairs.len());
-    
+
     for (i, qa) in qa_pairs.iter().enumerate() {
         println!("Q{}: {}", i + 1, qa.question);
         println!("   类型：{}", qa.question_type);
@@ -110,30 +110,31 @@ fn main() -> anyhow::Result<()> {
 
     // 3. 导出训练数据
     println!("3. 导出训练数据\n");
-    
+
     // 导出 CoT 数据
+    let temp_dir = std::env::temp_dir();
     for (i, task) in tasks.iter().enumerate() {
         let cot_data = generator.generate(&floor_plan, task);
-        let output_path = format!("/tmp/cot_data_{}.json", i);
-        
+        let output_path = temp_dir.join(format!("cot_data_{}.json", i));
+
         JsonExporter::export_with_cot(
             &floor_plan,
             &cot_data.thinking,
             &cot_data.answer,
             &output_path,
         )?;
-        println!("   已保存：{}", output_path);
+        println!("   已保存：{}", output_path.display());
     }
 
     // 导出 QA 数据
-    let qa_output_path = "/tmp/qa_dataset.json";
+    let qa_output_path = temp_dir.join("qa_dataset.json");
     let qa_content = serde_json::to_string_pretty(&qa_pairs)?;
-    std::fs::write(qa_output_path, qa_content)?;
-    println!("   已保存：{}", qa_output_path);
+    std::fs::write(&qa_output_path, qa_content)?;
+    println!("   已保存：{}", qa_output_path.display());
 
     // 4. 生成多轮对话数据
     println!("\n4. 生成多轮对话数据\n");
-    
+
     let conversation = vec![
         ("用户".to_string(), "这个户型图有多少个房间？".to_string()),
         ("助手".to_string(), generator.generate(&floor_plan, "检测房间数量").answer),
@@ -155,13 +156,13 @@ fn main() -> anyhow::Result<()> {
             "content": content
         })
     }).collect::<Vec<_>>();
-    
-    let conv_output_path = "/tmp/conversation_data.json";
+
+    let conv_output_path = temp_dir.join("conversation_data.json");
     let conv_content = serde_json::to_string_pretty(&conversation_data)?;
-    std::fs::write(conv_output_path, conv_content)?;
-    println!("\n   已保存：{}", conv_output_path);
+    std::fs::write(&conv_output_path, conv_content)?;
+    println!("\n   已保存：{}", conv_output_path.display());
 
     println!("\n=== Geo-CoT 生成完成 ===");
-    
+
     Ok(())
 }

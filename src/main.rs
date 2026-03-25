@@ -93,6 +93,13 @@ enum Commands {
 
     /// 列出所有可用工具
     ListTools,
+
+    /// 验证配置文件
+    ValidateConfig {
+        /// 配置文件路径
+        #[arg(short, long, default_value = "config/default.json")]
+        config: PathBuf,
+    },
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -207,9 +214,58 @@ fn main() -> anyhow::Result<()> {
             let tools = registry.list_tools();
             println!("可用工具 ({} 个):", tools.len());
             println!();
-            
+
             for tool in tools {
                 println!("  {} - {}", tool.name, tool.description);
+            }
+        }
+
+        Commands::ValidateConfig { config } => {
+            use cadagent::config::validate_config_file;
+
+            println!("正在验证配置文件：{:?}", config);
+            println!();
+
+            match validate_config_file(&config) {
+                Ok(result) => {
+                    if result.is_valid {
+                        println!("✅ 配置验证通过！");
+                        println!();
+                        println!("通过检查 ({} 项):", result.passed_checks.len());
+                        for check in &result.passed_checks {
+                            println!("  ✓ {}", check);
+                        }
+
+                        if !result.warnings.is_empty() {
+                            println!();
+                            println!("⚠️  警告 ({} 项):", result.warnings.len());
+                            for warning in &result.warnings {
+                                println!("  - {}", warning);
+                            }
+                        }
+                    } else {
+                        println!("❌ 配置验证失败！");
+                        println!();
+                        println!("错误 ({} 项):", result.errors.len());
+                        for error in &result.errors {
+                            println!("  ✗ {}", error);
+                        }
+
+                        if !result.passed_checks.is_empty() {
+                            println!();
+                            println!("通过检查 ({} 项):", result.passed_checks.len());
+                            for check in &result.passed_checks {
+                                println!("  ✓ {}", check);
+                            }
+                        }
+
+                        std::process::exit(1);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("验证过程出错：{}", e);
+                    std::process::exit(1);
+                }
             }
         }
     }

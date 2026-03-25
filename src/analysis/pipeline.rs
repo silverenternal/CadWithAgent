@@ -21,11 +21,11 @@ pub struct AnalysisPipeline {
     reasoner: GeometricRelationReasoner,
     verifier: ConstraintVerifier,
     prompt_builder: PromptBuilder,
-    vlm_client: VlmClient,
+    vlm_client: Option<VlmClient>,
 }
 
 impl AnalysisPipeline {
-    /// 创建新的分析管线
+    /// 创建新的分析管线（需要 VLM 配置）
     ///
     /// # Errors
     /// 如果 VLM API Key 未设置，返回 `vlm_client::VlmError`
@@ -66,12 +66,12 @@ impl AnalysisPipeline {
                 max_primitives_display: config.max_primitives_display,
                 ..Default::default()
             }),
-            vlm_client: VlmClient::with_zazaz()?,
+            vlm_client: Some(VlmClient::with_zazaz()?),
             config,
         })
     }
 
-    /// 使用默认配置创建管线
+    /// 使用默认配置创建管线（需要 VLM 配置）
     ///
     /// # Errors
     /// 如果 VLM API Key 未设置，返回 `vlm_client::VlmError`
@@ -112,22 +112,72 @@ impl AnalysisPipeline {
                 max_primitives_display: config.max_primitives_display,
                 ..Default::default()
             }),
-            vlm_client: VlmClient::new(vlm_config),
+            vlm_client: Some(VlmClient::new(vlm_config)),
             config,
         }
+    }
+
+    /// 创建仅几何分析管线（不需要 VLM 配置）
+    ///
+    /// 此模式适用于只需要几何处理而不需要 VLM 推理的场景
+    /// 所有几何操作（基元提取、关系推理、约束校验、提示词构建）都可用
+    /// 但无法执行 VLM 推理
+    pub fn geometry_only(config: AnalysisConfig) -> Self {
+        Self {
+            extractor: CadPrimitiveExtractor::new(ExtractorConfig {
+                geometry: crate::error::GeometryConfig {
+                    normalize_range: config.normalize_range,
+                    enable_normalization: config.enable_normalization,
+                    angle_tolerance: config.angle_tolerance,
+                    distance_tolerance: config.distance_tolerance,
+                    min_confidence: config.min_confidence,
+                },
+                min_line_length: 0.1,
+                min_circle_radius: 0.1,
+                filter_text: false,
+                layer_filter: None,
+            }),
+            reasoner: GeometricRelationReasoner::new(ReasoningConfig {
+                angle_tolerance: config.angle_tolerance,
+                distance_tolerance: config.distance_tolerance,
+                min_confidence: config.min_confidence,
+                detect_parallel: true,
+                detect_perpendicular: true,
+                detect_collinear: true,
+                detect_tangent: true,
+                detect_concentric: true,
+                detect_connected: true,
+                detect_symmetric: false,
+            }),
+            verifier: ConstraintVerifier::new(VerifierConfig::default()),
+            prompt_builder: PromptBuilder::new(PromptConfig {
+                max_primitives_display: config.max_primitives_display,
+                ..Default::default()
+            }),
+            vlm_client: None,
+            config,
+        }
+    }
+
+    /// 检查是否配置了 VLM
+    pub fn has_vlm(&self) -> bool {
+        self.vlm_client.is_some()
     }
 
     /// 运行 VLM 推理
     ///
     /// # Errors
-    /// 如果 VLM 推理失败，返回 `CadAgentError::Api`
+    /// 如果 VLM 未配置或推理失败，返回 `CadAgentError::Api`
     pub fn run_vlm_inference(&self, prompt: &str) -> CadAgentResult<String> {
+        let vlm_client = self.vlm_client.as_ref()
+            .ok_or_else(|| CadAgentError::Api("VLM 未配置：请使用 with_vlm_config() 或 with_defaults() 创建管线".to_string()))?;
+
         let messages = &[
             ("system", "你是一个 CAD 几何推理专家。你将收到精确的几何数据和约束关系，请基于这些结构化信息进行推理分析。你的推理应该：1. 基于给定的几何事实，不臆测 2. 逻辑清晰，分步骤推理 3. 输出可解释、可验证的结论"),
             ("user", prompt),
         ];
 
-        let response = self.vlm_client
+        let response = vlm_client
             .chat_completions_blocking(messages)
             .map_err(|e| CadAgentError::Api(format!("VLM 推理失败：{}", e)))?;
 
@@ -150,17 +200,20 @@ impl AnalysisPipeline {
     /// 运行 VLM 推理并返回结构化结果
     ///
     /// # Errors
-    /// 如果 VLM 推理失败，返回 `CadAgentError::Api`
+    /// 如果 VLM 未配置或推理失败，返回 `CadAgentError::Api`
     pub fn run_vlm_inference_with_details(
         &self,
         prompt: &str,
     ) -> CadAgentResult<VlmResponseInfo> {
+        let vlm_client = self.vlm_client.as_ref()
+            .ok_or_else(|| CadAgentError::Api("VLM 未配置：请使用 with_vlm_config() 或 with_defaults() 创建管线".to_string()))?;
+
         let messages = &[
             ("system", "你是一个 CAD 几何推理专家。你将收到精确的几何数据和约束关系，请基于这些结构化信息进行推理分析。你的推理应该：1. 基于给定的几何事实，不臆测 2. 逻辑清晰，分步骤推理 3. 输出可解释、可验证的结论"),
             ("user", prompt),
         ];
 
-        let response = self.vlm_client
+        let response = vlm_client
             .chat_completions_blocking(messages)
             .map_err(|e| CadAgentError::Api(format!("VLM 推理失败：{}", e)))?;
 
@@ -344,6 +397,10 @@ impl AnalysisPipeline {
     /// # Errors
     /// 如果基元提取、几何推理或 VLM 推理失败，返回相应的 `CadAgentError`
     pub fn inject_from_svg_with_vlm(&self, svg_path: impl AsRef<Path>, task: &str) -> CadAgentResult<AnalysisResult> {
+        if self.vlm_client.is_none() {
+            return Err(CadAgentError::Api("VLM 未配置：请使用 geometry_only() 模式，或者使用 with_vlm_config() 配置 VLM".to_string()));
+        }
+
         let mut result = self.inject_from_svg(svg_path, task)?;
 
         // Step 5: VLM 推理
@@ -518,6 +575,10 @@ impl AnalysisPipeline {
     /// # Errors
     /// 如果基元提取、几何推理或 VLM 推理失败，返回相应的 `CadAgentError`
     pub fn inject_from_svg_string_with_vlm(&self, svg_content: &str, task: &str) -> CadAgentResult<AnalysisResult> {
+        if self.vlm_client.is_none() {
+            return Err(CadAgentError::Api("VLM 未配置：请使用 geometry_only() 模式，或者使用 with_vlm_config() 配置 VLM".to_string()));
+        }
+
         let mut result = self.inject_from_svg_string(svg_content, task)?;
 
         // Step 5: VLM 推理
@@ -620,6 +681,56 @@ mod tests {
         );
         let _pipeline = AnalysisPipeline::with_vlm_config(config, vlm_config);
         assert!(true); // 能创建成功即可
+    }
+
+    #[test]
+    fn test_geometry_only_pipeline_creation() {
+        // 测试仅几何模式管线创建（不需要 API Key）
+        let config = AnalysisConfig::default();
+        let pipeline = AnalysisPipeline::geometry_only(config);
+        
+        // 验证 VLM 未配置
+        assert!(!pipeline.has_vlm());
+        
+        // 验证能正常创建
+        assert!(true);
+    }
+
+    #[test]
+    fn test_geometry_only_svg_injection() {
+        // 测试仅几何模式的 SVG 注入
+        let config = AnalysisConfig::default();
+        let pipeline = AnalysisPipeline::geometry_only(config);
+        
+        let svg_content = r#"<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg">
+            <line x1="0" y1="0" x2="100" y2="0" />
+            <line x1="0" y1="0" x2="0" y2="100" />
+        </svg>"#;
+        
+        // 应该能成功执行几何分析（不含 VLM 推理）
+        let result = pipeline.inject_from_svg_string(svg_content, "分析图形");
+        assert!(result.is_ok(), "几何分析失败：{:?}", result);
+        
+        let result = result.unwrap();
+        assert!(result.primitive_count() > 0);
+        assert!(result.vlm_response.is_none()); // 验证没有 VLM 响应
+    }
+
+    #[test]
+    fn test_geometry_only_vlm_inference_error() {
+        // 测试仅几何模式调用 VLM 推理应该返回错误
+        let config = AnalysisConfig::default();
+        let pipeline = AnalysisPipeline::geometry_only(config);
+        
+        let svg_content = r#"<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg">
+            <rect x="0" y="0" width="100" height="100" />
+        </svg>"#;
+        
+        // 调用 with_vlm 方法应该返回错误
+        let result = pipeline.inject_from_svg_string_with_vlm(svg_content, "分析图形");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("VLM 未配置"));
     }
 
     #[test]

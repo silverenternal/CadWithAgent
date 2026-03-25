@@ -209,15 +209,246 @@ impl ToolRegistry {
     }
 
     fn register_topology_tools(&mut self) {
-        // 注册拓扑分析工具
+        use crate::topology::room_detect::RoomDetector;
+        use crate::topology::loop_detect::find_closed_loops;
+
+        // 房间检测工具
+        self.register(ToolDefinition {
+            name: "detect_rooms",
+            description: "检测户型图中的所有房间",
+            function: Arc::new(move |args| {
+                let detector = RoomDetector;
+                let primitives = args["primitives"].as_array()
+                    .ok_or_else(|| ToolError::InvalidArgs("primitives 必须是数组".into()))?;
+
+                let primitives: Vec<Primitive> = serde_json::from_value(Value::Array(primitives.clone()))
+                    .map_err(|e| ToolError::InvalidArgs(format!("解析图元失败：{}", e)))?;
+
+                let rooms = detector.detect_rooms(primitives);
+                Ok(serde_json::to_value(&rooms).unwrap())
+            }),
+        });
+
+        self.register(ToolDefinition {
+            name: "count_rooms",
+            description: "统计房间数量",
+            function: Arc::new(move |args| {
+                let detector = RoomDetector;
+                let primitives = args["primitives"].as_array()
+                    .ok_or_else(|| ToolError::InvalidArgs("primitives 必须是数组".into()))?;
+
+                let primitives: Vec<Primitive> = serde_json::from_value(Value::Array(primitives.clone()))
+                    .map_err(|e| ToolError::InvalidArgs(format!("解析图元失败：{}", e)))?;
+
+                let count = detector.count_rooms(primitives);
+                Ok(Value::Number(serde_json::Number::from(count)))
+            }),
+        });
+
+        self.register(ToolDefinition {
+            name: "detect_doors",
+            description: "检测门的位置和数量",
+            function: Arc::new(move |args| {
+                let primitives = args["primitives"].as_array()
+                    .ok_or_else(|| ToolError::InvalidArgs("primitives 必须是数组".into()))?;
+
+                let primitives: Vec<Primitive> = serde_json::from_value(Value::Array(primitives.clone()))
+                    .map_err(|e| ToolError::InvalidArgs(format!("解析图元失败：{}", e)))?;
+
+                // 使用 detect_rooms 并提取门信息
+                let detector = RoomDetector;
+                let result = detector.detect_rooms(primitives);
+                let doors: Vec<_> = result.rooms.iter().flat_map(|r| r.doors.clone()).collect();
+                Ok(serde_json::to_value(&doors).unwrap())
+            }),
+        });
+
+        self.register(ToolDefinition {
+            name: "detect_windows",
+            description: "检测窗户的位置和数量",
+            function: Arc::new(move |args| {
+                let primitives = args["primitives"].as_array()
+                    .ok_or_else(|| ToolError::InvalidArgs("primitives 必须是数组".into()))?;
+
+                let primitives: Vec<Primitive> = serde_json::from_value(Value::Array(primitives.clone()))
+                    .map_err(|e| ToolError::InvalidArgs(format!("解析图元失败：{}", e)))?;
+
+                // 使用 detect_rooms 并提取窗户信息
+                let detector = RoomDetector;
+                let result = detector.detect_rooms(primitives);
+                let windows: Vec<_> = result.rooms.iter().flat_map(|r| r.windows.clone()).collect();
+                Ok(serde_json::to_value(&windows).unwrap())
+            }),
+        });
+
+        self.register(ToolDefinition {
+            name: "find_closed_loop",
+            description: "查找闭合回路（用于房间边界检测）",
+            function: Arc::new(move |args| {
+                let primitives = args["primitives"].as_array()
+                    .ok_or_else(|| ToolError::InvalidArgs("primitives 必须是数组".into()))?;
+
+                let primitives: Vec<Primitive> = serde_json::from_value(Value::Array(primitives.clone()))
+                    .map_err(|e| ToolError::InvalidArgs(format!("解析图元失败：{}", e)))?;
+
+                let loops = find_closed_loops(&primitives);
+                Ok(serde_json::to_value(&loops).unwrap())
+            }),
+        });
+
+        self.register(ToolDefinition {
+            name: "max_room_area",
+            description: "找出最大房间面积",
+            function: Arc::new(move |args| {
+                let detector = RoomDetector;
+                let primitives = args["primitives"].as_array()
+                    .ok_or_else(|| ToolError::InvalidArgs("primitives 必须是数组".into()))?;
+
+                let primitives: Vec<Primitive> = serde_json::from_value(Value::Array(primitives.clone()))
+                    .map_err(|e| ToolError::InvalidArgs(format!("解析图元失败：{}", e)))?;
+
+                let max_area = detector.max_room_area(primitives);
+                Ok(Value::Number(serde_json::Number::from_f64(max_area).unwrap()))
+            }),
+        });
     }
 
     fn register_io_tools(&mut self) {
-        // 注册 IO 工具
+        use crate::parser::svg::SvgParser;
+        use crate::parser::dxf::DxfParser;
+        use crate::export::dxf::DxfExporter;
+        use crate::export::json::JsonExporter;
+
+        // SVG 解析工具
+        self.register(ToolDefinition {
+            name: "parse_svg",
+            description: "解析 SVG 文件，提取几何图元",
+            function: Arc::new(move |args| {
+                let path = args["path"].as_str()
+                    .ok_or_else(|| ToolError::InvalidArgs("path 必须是字符串".into()))?;
+
+                let result = SvgParser::parse(path)
+                    .map_err(|e| ToolError::CallFailed(format!("SVG 解析失败：{}", e)))?;
+
+                Ok(serde_json::to_value(&result.primitives).unwrap())
+            }),
+        });
+
+        // DXF 解析工具
+        self.register(ToolDefinition {
+            name: "parse_dxf",
+            description: "解析 DXF 文件，提取几何图元",
+            function: Arc::new(move |args| {
+                let path = args["path"].as_str()
+                    .ok_or_else(|| ToolError::InvalidArgs("path 必须是字符串".into()))?;
+
+                let result = DxfParser::parse(path)
+                    .map_err(|e| ToolError::CallFailed(format!("DXF 解析失败：{}", e)))?;
+
+                Ok(serde_json::to_value(&result.primitives).unwrap())
+            }),
+        });
+
+        // DXF 导出工具
+        self.register(ToolDefinition {
+            name: "export_dxf",
+            description: "将几何图元导出为 DXF 文件",
+            function: Arc::new(move |args| {
+                let primitives = args["primitives"].as_array()
+                    .ok_or_else(|| ToolError::InvalidArgs("primitives 必须是数组".into()))?;
+                let output_path = args["output_path"].as_str()
+                    .ok_or_else(|| ToolError::InvalidArgs("output_path 必须是字符串".into()))?;
+
+                let primitives: Vec<Primitive> = serde_json::from_value(Value::Array(primitives.clone()))
+                    .map_err(|e| ToolError::InvalidArgs(format!("解析图元失败：{}", e)))?;
+
+                let result = DxfExporter::export(&primitives, output_path)
+                    .map_err(|e| ToolError::CallFailed(format!("DXF 导出失败：{}", e)))?;
+
+                Ok(serde_json::to_value(&result).unwrap())
+            }),
+        });
+
+        // JSON 导出工具
+        self.register(ToolDefinition {
+            name: "export_json",
+            description: "将几何图元导出为 JSON 文件",
+            function: Arc::new(move |args| {
+                let primitives = args["primitives"].as_array()
+                    .ok_or_else(|| ToolError::InvalidArgs("primitives 必须是数组".into()))?;
+                let output_path = args["output_path"].as_str()
+                    .ok_or_else(|| ToolError::InvalidArgs("output_path 必须是字符串".into()))?;
+
+                let primitives: Vec<Primitive> = serde_json::from_value(Value::Array(primitives.clone()))
+                    .map_err(|e| ToolError::InvalidArgs(format!("解析图元失败：{}", e)))?;
+
+                let result = JsonExporter::export(&primitives, output_path)
+                    .map_err(|e| ToolError::CallFailed(format!("JSON 导出失败：{}", e)))?;
+
+                Ok(serde_json::to_value(&result).unwrap())
+            }),
+        });
     }
 
     fn register_cot_tools(&mut self) {
-        // 注册 Geo-CoT 工具
+        use crate::cot::generator::GeoCotGenerator;
+        use crate::cot::qa::QaGenerator;
+
+        // Geo-CoT 生成工具
+        self.register(ToolDefinition {
+            name: "generate_geo_cot",
+            description: "生成几何思维链数据",
+            function: Arc::new(move |args| {
+                let generator = GeoCotGenerator::new();
+                let primitives = args["primitives"].as_array()
+                    .ok_or_else(|| ToolError::InvalidArgs("primitives 必须是数组".into()))?;
+                let task = args["task"].as_str()
+                    .ok_or_else(|| ToolError::InvalidArgs("task 必须是字符串".into()))?;
+
+                let primitives: Vec<Primitive> = serde_json::from_value(Value::Array(primitives.clone()))
+                    .map_err(|e| ToolError::InvalidArgs(format!("解析图元失败：{}", e)))?;
+
+                let cot_data = generator.generate(&primitives, task);
+                Ok(serde_json::to_value(&cot_data).unwrap())
+            }),
+        });
+
+        // QA 生成工具
+        self.register(ToolDefinition {
+            name: "generate_qa",
+            description: "生成问答对数据集",
+            function: Arc::new(move |args| {
+                let generator = QaGenerator::new();
+                let primitives = args["primitives"].as_array()
+                    .ok_or_else(|| ToolError::InvalidArgs("primitives 必须是数组".into()))?;
+
+                let primitives: Vec<Primitive> = serde_json::from_value(Value::Array(primitives.clone()))
+                    .map_err(|e| ToolError::InvalidArgs(format!("解析图元失败：{}", e)))?;
+
+                let qa_pairs = generator.generate_all(&primitives);
+                Ok(serde_json::to_value(&qa_pairs).unwrap())
+            }),
+        });
+
+        // 思维链评估工具
+        self.register(ToolDefinition {
+            name: "evaluate_cot",
+            description: "评估思维链质量",
+            function: Arc::new(move |args| {
+                // 简化实现：返回基础评估指标
+                let thinking = args["thinking"].as_str()
+                    .ok_or_else(|| ToolError::InvalidArgs("thinking 必须是字符串".into()))?;
+                let answer = args["answer"].as_str()
+                    .ok_or_else(|| ToolError::InvalidArgs("answer 必须是字符串".into()))?;
+
+                Ok(serde_json::json!({
+                    "thinking_length": thinking.len(),
+                    "answer_length": answer.len(),
+                    "has_structure": thinking.contains("<thinking>") || thinking.contains("思考"),
+                    "quality_score": 0.8 // 简化评分
+                }))
+            }),
+        });
     }
 
     /// 注册单个工具

@@ -224,9 +224,23 @@ pub struct VlmErrorDetail {
     pub code: Option<String>,
 }
 
+/// 全局运行时池（用于优化 blocking API）
+static RUNTIME_POOL: once_cell::sync::Lazy<Arc<tokio::runtime::Runtime>> =
+    once_cell::sync::Lazy::new(|| {
+        Arc::new(
+            tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(4)
+                .thread_name("vlm-runtime")
+                .enable_all()
+                .build()
+                .expect("Failed to create global tokio runtime"),
+        )
+    });
+
 /// VLM 客户端
 pub struct VlmClient {
     config: VlmConfig,
+    /// HTTP 客户端（内部已实现连接池）
     client: reqwest::Client,
     /// LRU 缓存，存储 prompt 哈希 -> 响应
     cache: Arc<Mutex<LruCache<u64, ChatCompletionsResponse>>>,
@@ -455,12 +469,14 @@ impl VlmClient {
     ///
     /// 此方法会：
     /// 1. 首先检查 LRU 缓存，如果命中则直接返回（无网络请求）
-    /// 2. 如果未命中，创建临时 tokio runtime 执行异步请求
+    /// 2. 如果未命中，优先使用全局运行时池执行异步请求
     /// 3. 响应会自动缓存供后续使用
     ///
-    /// # 建议
+    /// # 优化
     ///
-    /// 对于高性能场景，建议使用异步 API `chat_completions()` 避免每次创建 runtime 的开销
+    /// - 使用全局运行时池避免每次创建 runtime 的开销
+    /// - 如果当前已在 tokio runtime 中，会使用 block_in_place 避免 panic
+    /// - HTTP 客户端内部使用连接池，复用 TCP 连接
     pub fn chat_completions_blocking(
         &self,
         messages: &[(&str, &str)],
@@ -474,10 +490,8 @@ impl VlmClient {
                 })
             })
         } else {
-            // 创建新 runtime
-            let rt = tokio::runtime::Runtime::new()
-                .map_err(|e| VlmError::HttpError(format!("创建运行时失败：{}", e)))?;
-            rt.block_on(self.chat_completions(messages))
+            // 使用全局运行时池，避免每次创建新 runtime
+            RUNTIME_POOL.block_on(self.chat_completions(messages))
         }
     }
 

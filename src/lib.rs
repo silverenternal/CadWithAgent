@@ -63,6 +63,8 @@ pub mod analysis;
 // LLM 推理
 pub mod llm_reasoning;
 pub mod error;
+// 配置验证
+pub mod config;
 
 /// 预导出模块，方便快速导入
 pub mod prelude {

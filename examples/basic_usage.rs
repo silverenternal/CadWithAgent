@@ -104,8 +104,8 @@ fn main() -> anyhow::Result<()> {
 
     // 6. DXF 导出
     println!("\n6. DXF 导出");
-    let output_path = "/tmp/cadagent_example.dxf";
-    let result = DxfExporter::export(&floor_plan, output_path)?;
+    let output_path = std::env::temp_dir().join("cadagent_example.dxf");
+    let result = DxfExporter::export(&floor_plan, &output_path)?;
     println!("   导出成功：{} ({} 个图元)", result.path, result.entity_count);
 
     // 7. 使用工具注册表
