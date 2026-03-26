@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="600" viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+  <!-- Complex floor plan with multiple rooms -->
+
+  <!-- Outer walls -->
+  <line x1="50" y1="50" x2="750" y2="50" stroke="black" stroke-width="3"/>
+  <line x1="750" y1="50" x2="750" y2="550" stroke="black" stroke-width="3"/>
+  <line x1="750" y1="550" x2="50" y2="550" stroke="black" stroke-width="3"/>
+  <line x1="50" y1="550" x2="50" y2="50" stroke="black" stroke-width="3"/>
+
+  <!-- Interior horizontal walls -->
+  <line x1="50" y1="300" x2="400" y2="300" stroke="black" stroke-width="2"/>
+  <line x1="400" y1="300" x2="750" y2="300" stroke="black" stroke-width="2"/>
+
+  <!-- Interior vertical walls -->
+  <line x1="400" y1="50" x2="400" y2="300" stroke="black" stroke-width="2"/>
+  <line x1="250" y1="300" x2="250" y2="550" stroke="black" stroke-width="2"/>
+  <line x1="550" y1="300" x2="550" y2="550" stroke="black" stroke-width="2"/>
+
+  <!-- Windows (circles) -->
+  <circle cx="200" cy="50" r="20" fill="none" stroke="blue" stroke-width="2"/>
+  <circle cx="600" cy="50" r="20" fill="none" stroke="blue" stroke-width="2"/>
+  <circle cx="750" cy="180" r="20" fill="none" stroke="blue" stroke-width="2"/>
+  <circle cx="750" cy="420" r="20" fill="none" stroke="blue" stroke-width="2"/>
+
+  <!-- Door arcs (represented as lines) -->
+  <line x1="150" y1="50" x2="200" y2="50" stroke="white" stroke-width="3"/>
+  <line x1="500" y1="300" x2="550" y2="300" stroke="white" stroke-width="3"/>
+</svg>
