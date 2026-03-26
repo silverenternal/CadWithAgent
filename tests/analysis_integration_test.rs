@@ -1,6 +1,6 @@
 //! analysis 模块集成测试
 
-use cadagent::analysis::{AnalysisPipeline, AnalysisConfig};
+use cadagent::analysis::{AnalysisConfig, AnalysisPipeline};
 use cadagent::prelude::*;
 
 /// 测试：分析管线配置验证
@@ -11,18 +11,24 @@ fn test_analysis_config_validation() {
     assert!(config.validate().is_ok());
 
     // 测试无效归一化范围
-    let mut invalid_config = AnalysisConfig::default();
-    invalid_config.normalize_range = [100.0, 0.0];  // 最小值 > 最大值
+    let invalid_config = AnalysisConfig {
+        normalize_range: [100.0, 0.0],
+        ..Default::default()
+    }; // 最小值 > 最大值
     assert!(invalid_config.validate().is_err());
 
     // 测试无效角度容差
-    let mut invalid_config = AnalysisConfig::default();
-    invalid_config.angle_tolerance = -0.01;
+    let invalid_config = AnalysisConfig {
+        angle_tolerance: -0.01,
+        ..Default::default()
+    };
     assert!(invalid_config.validate().is_err());
 
     // 测试 validate_or_fix 自动修正
-    let mut config_to_fix = AnalysisConfig::default();
-    config_to_fix.angle_tolerance = -0.01;
+    let mut config_to_fix = AnalysisConfig {
+        angle_tolerance: -0.01,
+        ..Default::default()
+    };
     let warnings = config_to_fix.validate_or_fix();
     assert!(!warnings.is_empty());
     assert!((config_to_fix.angle_tolerance - 0.01).abs() < 1e-10);
@@ -43,15 +49,15 @@ fn test_inject_from_svg_string() {
     // 注意：需要 API Key 才能创建管线
     // 这里测试创建失败的情况
     let result = AnalysisPipeline::with_defaults();
-    
+
     // 如果没有设置 API Key，会返回错误
     if let Ok(pipeline) = result {
         let inject_result = pipeline.inject_from_svg_string(svg_content, "分析这个矩形");
         assert!(inject_result.is_ok());
-        
+
         let result = inject_result.unwrap();
         assert!(!result.primitives.is_empty());
-        assert!(result.prompt.full_prompt.len() > 0);
+        assert!(!result.prompt.full_prompt.is_empty());
     }
     // 如果 API Key 未设置，跳过测试
 }
@@ -95,9 +101,9 @@ fn test_constraint_verifier_integration() {
 
     assert!(verification.is_ok());
     let result = verification.unwrap();
-    
+
     // 验证结果应该有冲突和问题的统计
-    assert!(result.conflicts.is_empty() || !result.conflicts.is_empty());  // 无论有没有冲突都正常
+    assert!(result.conflicts.is_empty() || !result.conflicts.is_empty()); // 无论有没有冲突都正常
 }
 
 /// 测试：提示词构造器集成
@@ -130,7 +136,7 @@ fn test_summary_mode() {
     for i in 0..150 {
         primitives.push(Primitive::Line(Line::from_coords(
             [i as f64, 0.0],
-            [i as f64, 100.0]
+            [i as f64, 100.0],
         )));
     }
 
@@ -146,7 +152,7 @@ fn test_summary_mode() {
     // 验证启用了摘要模式
     assert!(prompt.full_prompt.contains("摘要模式"));
     assert!(prompt.full_prompt.contains("节省 Token"));
-    
+
     // 验证不包含详细样本（因为启用了摘要）
     assert!(!prompt.full_prompt.contains("样本："));
 }

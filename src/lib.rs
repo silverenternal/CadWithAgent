@@ -45,14 +45,14 @@
 //! - [`prompt_builder`][]: 结构化提示词构造器（底层模块）
 //! - [`llm_reasoning`]: LLM 推理引擎（使用 analysis 模块）
 
-pub mod parser;
-pub mod geometry;
-pub mod topology;
+pub mod bridge;
 pub mod cot;
 pub mod export;
+pub mod geometry;
 pub mod metrics;
-pub mod bridge;
+pub mod parser;
 pub mod tools;
+pub mod topology;
 // 核心功能模块
 pub mod cad_extractor;
 pub mod cad_reasoning;
@@ -61,54 +61,57 @@ pub mod prompt_builder;
 // 统一分析管线（推荐使用）
 pub mod analysis;
 // LLM 推理
-pub mod llm_reasoning;
 pub mod error;
+pub mod llm_reasoning;
 // 配置验证
 pub mod config;
 
 /// 预导出模块，方便快速导入
 pub mod prelude {
-    pub use crate::geometry::primitives::{Primitive, Point, Line, Polygon, Circle, Rect, Room, Door, Window};
-    pub use crate::geometry::measure::GeometryMeasurer;
-    pub use crate::geometry::transform::GeometryTransform;
-    pub use crate::tools::registry::{ToolRegistry, ToolResult, ToolError};
     pub use crate::cot::generator::GeoCotGenerator;
+    pub use crate::error::{
+        CadAgentError, CadAgentResult, GeometryConfig, GeometryToleranceConfig,
+    };
     pub use crate::export::dxf::DxfExporter;
+    pub use crate::geometry::measure::GeometryMeasurer;
+    pub use crate::geometry::primitives::{
+        Circle, Door, Line, Point, Polygon, Primitive, Rect, Room, Window,
+    };
+    pub use crate::geometry::transform::GeometryTransform;
     pub use crate::parser::svg::SvgParser;
-    pub use crate::error::{CadAgentError, CadAgentResult, GeometryToleranceConfig, GeometryConfig};
+    pub use crate::tools::registry::{ToolError, ToolRegistry, ToolResult};
 
     // CAD 基元提取工具
     pub use crate::cad_extractor::{
-        CadPrimitiveExtractor, ExtractorConfig, PrimitiveExtractionResult,
-        PrimitiveStatistics, CoordinateInfo,
+        CadPrimitiveExtractor, CoordinateInfo, ExtractorConfig, PrimitiveExtractionResult,
+        PrimitiveStatistics,
     };
 
     // CAD 几何关系推理工具
     pub use crate::cad_reasoning::{
-        GeometricRelationReasoner, ReasoningConfig, ReasoningResult,
-        GeometricRelation, RelationStatistics,
+        GeometricRelation, GeometricRelationReasoner, ReasoningConfig, ReasoningResult,
+        RelationStatistics,
     };
 
     // CAD 约束合法性校验工具
     pub use crate::cad_verifier::{
-        ConstraintVerifier, VerifierConfig, VerificationResult,
-        Conflict, GeometryIssue, FixSuggestion,
+        Conflict, ConstraintVerifier, FixSuggestion, GeometryIssue, VerificationResult,
+        VerifierConfig,
     };
 
     // 结构化提示词构造器
     pub use crate::prompt_builder::{
-        PromptBuilder, PromptConfig, StructuredPrompt, PromptTemplate,
+        PromptBuilder, PromptConfig, PromptTemplate, StructuredPrompt,
     };
 
     // 统一分析管线（推荐使用）- 整合了基元提取、几何推理、约束校验和提示词构造
     pub use crate::analysis::{
-        AnalysisPipeline, AnalysisConfig, AnalysisResult,
-        ToolCallChain, ToolCallStep,
+        AnalysisConfig, AnalysisPipeline, AnalysisResult, ToolCallChain, ToolCallStep,
     };
 
     // 分析工具（tokitai 工具封装）
     pub use crate::analysis::tools::{
-        AnalysisTools, SpatialAnalysisResult, ConstraintVerificationResult, GeoCotData,
+        AnalysisTools, ConstraintVerificationResult, GeoCotData, SpatialAnalysisResult,
     };
 
     pub use serde_json::json;

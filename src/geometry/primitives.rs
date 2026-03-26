@@ -29,7 +29,10 @@ impl Point {
     }
 
     pub fn from_array(arr: [f64; 2]) -> Self {
-        Self { x: arr[0], y: arr[1] }
+        Self {
+            x: arr[0],
+            y: arr[1],
+        }
     }
 }
 
@@ -247,7 +250,10 @@ pub enum Primitive {
     Polygon(Polygon),
     Circle(Circle),
     Rect(Rect),
-    Polyline { points: Vec<Point>, closed: bool },
+    Polyline {
+        points: Vec<Point>,
+        closed: bool,
+    },
     Arc {
         center: Point,
         radius: f64,
@@ -290,8 +296,14 @@ impl Primitive {
                 ))
             }
             Primitive::Circle(circle) => Some(Rect::new(
-                Point::new(circle.center.x - circle.radius, circle.center.y - circle.radius),
-                Point::new(circle.center.x + circle.radius, circle.center.y + circle.radius),
+                Point::new(
+                    circle.center.x - circle.radius,
+                    circle.center.y - circle.radius,
+                ),
+                Point::new(
+                    circle.center.x + circle.radius,
+                    circle.center.y + circle.radius,
+                ),
             )),
             Primitive::Rect(rect) => Some(rect.clone()),
             Primitive::Polyline { points, .. } => {
@@ -313,9 +325,7 @@ impl Primitive {
                     Point::new(max_x, max_y),
                 ))
             }
-            Primitive::Arc {
-                center, radius, ..
-            } => Some(Rect::new(
+            Primitive::Arc { center, radius, .. } => Some(Rect::new(
                 Point::new(center.x - radius, center.y - radius),
                 Point::new(center.x + radius, center.y + radius),
             )),

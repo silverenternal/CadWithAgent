@@ -2,9 +2,9 @@
 //!
 //! 命令行接口
 
-use clap::{Parser, Subcommand};
 use cadagent::prelude::*;
 use cadagent::tools::ToolRegistry;
+use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -119,9 +119,9 @@ fn main() -> anyhow::Result<()> {
     match cli.command {
         Commands::ParseSvg { input, output } => {
             let result = SvgParser::parse(&input)?;
-            
+
             let json = serde_json::to_string_pretty(&result)?;
-            
+
             match output {
                 Some(path) => {
                     std::fs::write(&path, &json)?;
@@ -133,7 +133,7 @@ fn main() -> anyhow::Result<()> {
 
         Commands::Measure { kind, data } => {
             let args: serde_json::Value = serde_json::from_str(&data)?;
-            
+
             let tool_name = match kind {
                 MeasureKind::Length => "measure_length",
                 MeasureKind::Area => "measure_area",
@@ -179,9 +179,10 @@ fn main() -> anyhow::Result<()> {
 
             use cadagent::cot::qa::QaGenerator;
             let generator = QaGenerator::new();
-            
+
             let qa_pairs = match kind {
-                Some(k) => generator.generate_all(&primitives)
+                Some(k) => generator
+                    .generate_all(&primitives)
                     .into_iter()
                     .filter(|qa| qa.question_type == k)
                     .collect::<Vec<_>>(),
@@ -201,7 +202,7 @@ fn main() -> anyhow::Result<()> {
 
             println!("一致性得分：{:.2}", result.score);
             println!("检查结果：{}", if result.passed { "通过" } else { "失败" });
-            
+
             if !result.errors.is_empty() {
                 println!("\n错误:");
                 for error in &result.errors {

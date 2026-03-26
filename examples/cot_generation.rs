@@ -2,10 +2,10 @@
 //!
 //! 演示如何生成几何思维链数据
 
-use cadagent::prelude::*;
 use cadagent::cot::generator::GeoCotGenerator;
 use cadagent::cot::qa::QaGenerator;
 use cadagent::export::json::JsonExporter;
+use cadagent::prelude::*;
 
 fn main() -> anyhow::Result<()> {
     println!("=== Geo-CoT 生成示例 ===\n");
@@ -19,7 +19,6 @@ fn main() -> anyhow::Result<()> {
             [800.0, 600.0],
             [0.0, 600.0],
         ])),
-
         // 房间 1: 客厅
         Primitive::Polygon(Polygon::from_coords(vec![
             [50.0, 50.0],
@@ -27,7 +26,6 @@ fn main() -> anyhow::Result<()> {
             [400.0, 350.0],
             [50.0, 350.0],
         ])),
-
         // 房间 2: 卧室
         Primitive::Polygon(Polygon::from_coords(vec![
             [400.0, 50.0],
@@ -35,7 +33,6 @@ fn main() -> anyhow::Result<()> {
             [750.0, 350.0],
             [400.0, 350.0],
         ])),
-
         // 房间 3: 厨房
         Primitive::Polygon(Polygon::from_coords(vec![
             [50.0, 350.0],
@@ -43,7 +40,6 @@ fn main() -> anyhow::Result<()> {
             [400.0, 550.0],
             [50.0, 550.0],
         ])),
-
         // 房间 4: 卫生间
         Primitive::Polygon(Polygon::from_coords(vec![
             [400.0, 350.0],
@@ -51,7 +47,6 @@ fn main() -> anyhow::Result<()> {
             [750.0, 550.0],
             [400.0, 550.0],
         ])),
-
         // 门标记
         Primitive::Text {
             content: "门".to_string(),
@@ -137,25 +132,41 @@ fn main() -> anyhow::Result<()> {
 
     let conversation = vec![
         ("用户".to_string(), "这个户型图有多少个房间？".to_string()),
-        ("助手".to_string(), generator.generate(&floor_plan, "检测房间数量").answer),
+        (
+            "助手".to_string(),
+            generator.generate(&floor_plan, "检测房间数量").answer,
+        ),
         ("用户".to_string(), "最大的房间是哪个？".to_string()),
-        ("助手".to_string(), generator.generate(&floor_plan, "找出最大的房间").answer),
+        (
+            "助手".to_string(),
+            generator.generate(&floor_plan, "找出最大的房间").answer,
+        ),
         ("用户".to_string(), "所有房间的总面积是多少？".to_string()),
-        ("助手".to_string(), generator.generate(&floor_plan, "计算总面积").answer),
+        (
+            "助手".to_string(),
+            generator.generate(&floor_plan, "计算总面积").answer,
+        ),
     ];
 
     println!("多轮对话:");
     for (role, content) in &conversation {
-        println!("  {}: {}...", role, content.chars().take(60).collect::<String>());
+        println!(
+            "  {}: {}...",
+            role,
+            content.chars().take(60).collect::<String>()
+        );
     }
 
     // 保存对话数据
-    let conversation_data = conversation.iter().map(|(role, content)| {
-        serde_json::json!({
-            "role": role,
-            "content": content
+    let conversation_data = conversation
+        .iter()
+        .map(|(role, content)| {
+            serde_json::json!({
+                "role": role,
+                "content": content
+            })
         })
-    }).collect::<Vec<_>>();
+        .collect::<Vec<_>>();
 
     let conv_output_path = temp_dir.join("conversation_data.json");
     let conv_content = serde_json::to_string_pretty(&conversation_data)?;

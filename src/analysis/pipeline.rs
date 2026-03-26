@@ -2,15 +2,17 @@
 //!
 //! 实现统一的几何分析管线，整合基元提取、几何推理、约束校验和提示词构造
 
+use crate::analysis::types::{
+    AnalysisConfig, AnalysisResult, TokenUsageInfo, ToolCallChain, ToolCallStep, VlmResponseInfo,
+};
+use crate::bridge::vlm_client::{VlmClient, VlmConfig};
 use crate::cad_extractor::{CadPrimitiveExtractor, ExtractorConfig};
 use crate::cad_reasoning::{GeometricRelationReasoner, ReasoningConfig};
 use crate::cad_verifier::{ConstraintVerifier, VerifierConfig};
-use crate::prompt_builder::{PromptBuilder, PromptConfig};
-use crate::bridge::vlm_client::{VlmClient, VlmConfig};
 use crate::error::{CadAgentError, CadAgentResult};
-use crate::analysis::types::{AnalysisConfig, AnalysisResult, VlmResponseInfo, TokenUsageInfo, ToolCallChain, ToolCallStep};
-use std::path::Path;
+use crate::prompt_builder::{PromptBuilder, PromptConfig};
 use std::collections::HashMap;
+use std::path::Path;
 use std::time::Instant;
 
 /// 分析管线
@@ -169,8 +171,11 @@ impl AnalysisPipeline {
     /// # Errors
     /// 如果 VLM 未配置或推理失败，返回 `CadAgentError::Api`
     pub fn run_vlm_inference(&self, prompt: &str) -> CadAgentResult<String> {
-        let vlm_client = self.vlm_client.as_ref()
-            .ok_or_else(|| CadAgentError::Api("VLM 未配置：请使用 with_vlm_config() 或 with_defaults() 创建管线".to_string()))?;
+        let vlm_client = self.vlm_client.as_ref().ok_or_else(|| {
+            CadAgentError::Api(
+                "VLM 未配置：请使用 with_vlm_config() 或 with_defaults() 创建管线".to_string(),
+            )
+        })?;
 
         let messages = &[
             ("system", "你是一个 CAD 几何推理专家。你将收到精确的几何数据和约束关系，请基于这些结构化信息进行推理分析。你的推理应该：1. 基于给定的几何事实，不臆测 2. 逻辑清晰，分步骤推理 3. 输出可解释、可验证的结论"),
@@ -181,7 +186,8 @@ impl AnalysisPipeline {
             .chat_completions_blocking(messages)
             .map_err(|e| CadAgentError::Api(format!("VLM 推理失败：{}", e)))?;
 
-        let content = response.choices
+        let content = response
+            .choices
             .first()
             .map(|c| c.message.content.clone())
             .unwrap_or_else(|| "无回答".to_string());
@@ -189,8 +195,10 @@ impl AnalysisPipeline {
         if self.config.verbose {
             eprintln!("VLM 推理完成");
             if let Some(usage) = &response.usage {
-                eprintln!("Token 使用：prompt={}, completion={}, total={}",
-                    usage.prompt_tokens, usage.completion_tokens, usage.total_tokens);
+                eprintln!(
+                    "Token 使用：prompt={}, completion={}, total={}",
+                    usage.prompt_tokens, usage.completion_tokens, usage.total_tokens
+                );
             }
         }
 
@@ -201,12 +209,12 @@ impl AnalysisPipeline {
     ///
     /// # Errors
     /// 如果 VLM 未配置或推理失败，返回 `CadAgentError::Api`
-    pub fn run_vlm_inference_with_details(
-        &self,
-        prompt: &str,
-    ) -> CadAgentResult<VlmResponseInfo> {
-        let vlm_client = self.vlm_client.as_ref()
-            .ok_or_else(|| CadAgentError::Api("VLM 未配置：请使用 with_vlm_config() 或 with_defaults() 创建管线".to_string()))?;
+    pub fn run_vlm_inference_with_details(&self, prompt: &str) -> CadAgentResult<VlmResponseInfo> {
+        let vlm_client = self.vlm_client.as_ref().ok_or_else(|| {
+            CadAgentError::Api(
+                "VLM 未配置：请使用 with_vlm_config() 或 with_defaults() 创建管线".to_string(),
+            )
+        })?;
 
         let messages = &[
             ("system", "你是一个 CAD 几何推理专家。你将收到精确的几何数据和约束关系，请基于这些结构化信息进行推理分析。你的推理应该：1. 基于给定的几何事实，不臆测 2. 逻辑清晰，分步骤推理 3. 输出可解释、可验证的结论"),
@@ -217,7 +225,8 @@ impl AnalysisPipeline {
             .chat_completions_blocking(messages)
             .map_err(|e| CadAgentError::Api(format!("VLM 推理失败：{}", e)))?;
 
-        let choice = response.choices
+        let choice = response
+            .choices
             .first()
             .ok_or_else(|| CadAgentError::Api("VLM 无回答".to_string()))?;
 
@@ -239,7 +248,11 @@ impl AnalysisPipeline {
     ///
     /// # Errors
     /// 如果基元提取、几何推理或提示词构造失败，返回相应的 `CadAgentError`
-    pub fn inject_from_svg(&self, svg_path: impl AsRef<Path>, task: &str) -> CadAgentResult<AnalysisResult> {
+    pub fn inject_from_svg(
+        &self,
+        svg_path: impl AsRef<Path>,
+        task: &str,
+    ) -> CadAgentResult<AnalysisResult> {
         let start_time = Instant::now();
         let mut execution_log = Vec::new();
         let mut tool_call_chain = ToolCallChain::new();
@@ -251,7 +264,7 @@ impl AnalysisPipeline {
         let step1_start = Instant::now();
         let extraction_result = self.extractor.extract_from_svg(svg_path.as_ref());
         let step1_latency = step1_start.elapsed().as_millis() as u64;
-        
+
         let extraction_result = match extraction_result {
             Ok(r) => {
                 execution_log.push(format!("  提取了 {} 个基元", r.primitives.len()));
@@ -262,9 +275,10 @@ impl AnalysisPipeline {
                     latency_ms: step1_latency,
                     success: true,
                     error: None,
-                    output_stats: HashMap::from([
-                        ("primitive_count".to_string(), serde_json::json!(r.primitives.len())),
-                    ]),
+                    output_stats: HashMap::from([(
+                        "primitive_count".to_string(),
+                        serde_json::json!(r.primitives.len()),
+                    )]),
                 });
                 r
             }
@@ -285,10 +299,15 @@ impl AnalysisPipeline {
         // Step 2: 推理几何关系
         execution_log.push("Step 2: 推理几何关系...".to_string());
         let step2_start = Instant::now();
-        let reasoning_result = self.reasoner.find_all_relations(&extraction_result.primitives);
+        let reasoning_result = self
+            .reasoner
+            .find_all_relations(&extraction_result.primitives);
         let step2_latency = step2_start.elapsed().as_millis() as u64;
-        execution_log.push(format!("  发现 {} 个几何关系", reasoning_result.relations.len()));
-        
+        execution_log.push(format!(
+            "  发现 {} 个几何关系",
+            reasoning_result.relations.len()
+        ));
+
         tool_call_chain.add_step(ToolCallStep {
             step: 2,
             tool_name: "cad_find_geometric_relations".to_string(),
@@ -297,9 +316,18 @@ impl AnalysisPipeline {
             success: true,
             error: None,
             output_stats: HashMap::from([
-                ("relation_count".to_string(), serde_json::json!(reasoning_result.relations.len())),
-                ("parallel_count".to_string(), serde_json::json!(reasoning_result.statistics.parallel_count)),
-                ("perpendicular_count".to_string(), serde_json::json!(reasoning_result.statistics.perpendicular_count)),
+                (
+                    "relation_count".to_string(),
+                    serde_json::json!(reasoning_result.relations.len()),
+                ),
+                (
+                    "parallel_count".to_string(),
+                    serde_json::json!(reasoning_result.statistics.parallel_count),
+                ),
+                (
+                    "perpendicular_count".to_string(),
+                    serde_json::json!(reasoning_result.statistics.perpendicular_count),
+                ),
             ]),
         });
 
@@ -307,12 +335,11 @@ impl AnalysisPipeline {
         let verification_result = if !self.config.skip_verification {
             execution_log.push("Step 3: 校验约束合法性...".to_string());
             let step3_start = Instant::now();
-            let result = self.verifier.verify(
-                &extraction_result.primitives,
-                &reasoning_result.relations,
-            );
+            let result = self
+                .verifier
+                .verify(&extraction_result.primitives, &reasoning_result.relations);
             let step3_latency = step3_start.elapsed().as_millis() as u64;
-            
+
             match result {
                 Ok(r) => {
                     execution_log.push(format!(
@@ -329,8 +356,14 @@ impl AnalysisPipeline {
                         error: None,
                         output_stats: HashMap::from([
                             ("is_valid".to_string(), serde_json::json!(r.is_valid)),
-                            ("overall_score".to_string(), serde_json::json!(r.overall_score)),
-                            ("conflict_count".to_string(), serde_json::json!(r.conflicts.len())),
+                            (
+                                "overall_score".to_string(),
+                                serde_json::json!(r.overall_score),
+                            ),
+                            (
+                                "conflict_count".to_string(),
+                                serde_json::json!(r.conflicts.len()),
+                            ),
                         ]),
                     });
                     Some(r)
@@ -364,7 +397,7 @@ impl AnalysisPipeline {
         );
         let step4_latency = step4_start.elapsed().as_millis() as u64;
         execution_log.push(format!("  提示词长度：{} 字符", prompt.full_prompt.len()));
-        
+
         tool_call_chain.add_step(ToolCallStep {
             step: 4,
             tool_name: "cad_build_analysis_prompt".to_string(),
@@ -372,9 +405,10 @@ impl AnalysisPipeline {
             latency_ms: step4_latency,
             success: true,
             error: None,
-            output_stats: HashMap::from([
-                ("prompt_length".to_string(), serde_json::json!(prompt.full_prompt.len())),
-            ]),
+            output_stats: HashMap::from([(
+                "prompt_length".to_string(),
+                serde_json::json!(prompt.full_prompt.len()),
+            )]),
         });
 
         let total_latency_ms = start_time.elapsed().as_millis() as u64;
@@ -396,17 +430,28 @@ impl AnalysisPipeline {
     ///
     /// # Errors
     /// 如果基元提取、几何推理或 VLM 推理失败，返回相应的 `CadAgentError`
-    pub fn inject_from_svg_with_vlm(&self, svg_path: impl AsRef<Path>, task: &str) -> CadAgentResult<AnalysisResult> {
+    pub fn inject_from_svg_with_vlm(
+        &self,
+        svg_path: impl AsRef<Path>,
+        task: &str,
+    ) -> CadAgentResult<AnalysisResult> {
         if self.vlm_client.is_none() {
-            return Err(CadAgentError::Api("VLM 未配置：请使用 geometry_only() 模式，或者使用 with_vlm_config() 配置 VLM".to_string()));
+            return Err(CadAgentError::Api(
+                "VLM 未配置：请使用 geometry_only() 模式，或者使用 with_vlm_config() 配置 VLM"
+                    .to_string(),
+            ));
         }
 
         let mut result = self.inject_from_svg(svg_path, task)?;
 
         // Step 5: VLM 推理
-        result.execution_log.push("Step 5: 执行 VLM 推理...".to_string());
+        result
+            .execution_log
+            .push("Step 5: 执行 VLM 推理...".to_string());
         let vlm_result = self.run_vlm_inference_with_details(&result.prompt.full_prompt)?;
-        result.execution_log.push(format!("  VLM 回答长度：{} 字符", vlm_result.content.len()));
+        result
+            .execution_log
+            .push(format!("  VLM 回答长度：{} 字符", vlm_result.content.len()));
         result.vlm_response = Some(vlm_result);
         result.execution_log.push("完成".to_string());
 
@@ -417,7 +462,11 @@ impl AnalysisPipeline {
     ///
     /// # Errors
     /// 如果基元提取、几何推理或提示词构造失败，返回相应的 `CadAgentError`
-    pub fn inject_from_svg_string(&self, svg_content: &str, task: &str) -> CadAgentResult<AnalysisResult> {
+    pub fn inject_from_svg_string(
+        &self,
+        svg_content: &str,
+        task: &str,
+    ) -> CadAgentResult<AnalysisResult> {
         let start_time = Instant::now();
         let mut execution_log = Vec::new();
         let mut tool_call_chain = ToolCallChain::new();
@@ -429,7 +478,7 @@ impl AnalysisPipeline {
         let step1_start = Instant::now();
         let extraction_result = self.extractor.extract_from_svg_string(svg_content);
         let step1_latency = step1_start.elapsed().as_millis() as u64;
-        
+
         let extraction_result = match extraction_result {
             Ok(r) => {
                 execution_log.push(format!("  提取了 {} 个基元", r.primitives.len()));
@@ -440,9 +489,10 @@ impl AnalysisPipeline {
                     latency_ms: step1_latency,
                     success: true,
                     error: None,
-                    output_stats: HashMap::from([
-                        ("primitive_count".to_string(), serde_json::json!(r.primitives.len())),
-                    ]),
+                    output_stats: HashMap::from([(
+                        "primitive_count".to_string(),
+                        serde_json::json!(r.primitives.len()),
+                    )]),
                 });
                 r
             }
@@ -463,10 +513,15 @@ impl AnalysisPipeline {
         // Step 2: 推理几何关系
         execution_log.push("Step 2: 推理几何关系...".to_string());
         let step2_start = Instant::now();
-        let reasoning_result = self.reasoner.find_all_relations(&extraction_result.primitives);
+        let reasoning_result = self
+            .reasoner
+            .find_all_relations(&extraction_result.primitives);
         let step2_latency = step2_start.elapsed().as_millis() as u64;
-        execution_log.push(format!("  发现 {} 个几何关系", reasoning_result.relations.len()));
-        
+        execution_log.push(format!(
+            "  发现 {} 个几何关系",
+            reasoning_result.relations.len()
+        ));
+
         tool_call_chain.add_step(ToolCallStep {
             step: 2,
             tool_name: "cad_find_geometric_relations".to_string(),
@@ -475,9 +530,18 @@ impl AnalysisPipeline {
             success: true,
             error: None,
             output_stats: HashMap::from([
-                ("relation_count".to_string(), serde_json::json!(reasoning_result.relations.len())),
-                ("parallel_count".to_string(), serde_json::json!(reasoning_result.statistics.parallel_count)),
-                ("perpendicular_count".to_string(), serde_json::json!(reasoning_result.statistics.perpendicular_count)),
+                (
+                    "relation_count".to_string(),
+                    serde_json::json!(reasoning_result.relations.len()),
+                ),
+                (
+                    "parallel_count".to_string(),
+                    serde_json::json!(reasoning_result.statistics.parallel_count),
+                ),
+                (
+                    "perpendicular_count".to_string(),
+                    serde_json::json!(reasoning_result.statistics.perpendicular_count),
+                ),
             ]),
         });
 
@@ -485,12 +549,11 @@ impl AnalysisPipeline {
         let verification_result = if !self.config.skip_verification {
             execution_log.push("Step 3: 校验约束合法性...".to_string());
             let step3_start = Instant::now();
-            let result = self.verifier.verify(
-                &extraction_result.primitives,
-                &reasoning_result.relations,
-            );
+            let result = self
+                .verifier
+                .verify(&extraction_result.primitives, &reasoning_result.relations);
             let step3_latency = step3_start.elapsed().as_millis() as u64;
-            
+
             match result {
                 Ok(r) => {
                     execution_log.push(format!(
@@ -507,8 +570,14 @@ impl AnalysisPipeline {
                         error: None,
                         output_stats: HashMap::from([
                             ("is_valid".to_string(), serde_json::json!(r.is_valid)),
-                            ("overall_score".to_string(), serde_json::json!(r.overall_score)),
-                            ("conflict_count".to_string(), serde_json::json!(r.conflicts.len())),
+                            (
+                                "overall_score".to_string(),
+                                serde_json::json!(r.overall_score),
+                            ),
+                            (
+                                "conflict_count".to_string(),
+                                serde_json::json!(r.conflicts.len()),
+                            ),
                         ]),
                     });
                     Some(r)
@@ -542,7 +611,7 @@ impl AnalysisPipeline {
         );
         let step4_latency = step4_start.elapsed().as_millis() as u64;
         execution_log.push(format!("  提示词长度：{} 字符", prompt.full_prompt.len()));
-        
+
         tool_call_chain.add_step(ToolCallStep {
             step: 4,
             tool_name: "cad_build_analysis_prompt".to_string(),
@@ -550,9 +619,10 @@ impl AnalysisPipeline {
             latency_ms: step4_latency,
             success: true,
             error: None,
-            output_stats: HashMap::from([
-                ("prompt_length".to_string(), serde_json::json!(prompt.full_prompt.len())),
-            ]),
+            output_stats: HashMap::from([(
+                "prompt_length".to_string(),
+                serde_json::json!(prompt.full_prompt.len()),
+            )]),
         });
 
         let total_latency_ms = start_time.elapsed().as_millis() as u64;
@@ -574,17 +644,28 @@ impl AnalysisPipeline {
     ///
     /// # Errors
     /// 如果基元提取、几何推理或 VLM 推理失败，返回相应的 `CadAgentError`
-    pub fn inject_from_svg_string_with_vlm(&self, svg_content: &str, task: &str) -> CadAgentResult<AnalysisResult> {
+    pub fn inject_from_svg_string_with_vlm(
+        &self,
+        svg_content: &str,
+        task: &str,
+    ) -> CadAgentResult<AnalysisResult> {
         if self.vlm_client.is_none() {
-            return Err(CadAgentError::Api("VLM 未配置：请使用 geometry_only() 模式，或者使用 with_vlm_config() 配置 VLM".to_string()));
+            return Err(CadAgentError::Api(
+                "VLM 未配置：请使用 geometry_only() 模式，或者使用 with_vlm_config() 配置 VLM"
+                    .to_string(),
+            ));
         }
 
         let mut result = self.inject_from_svg_string(svg_content, task)?;
 
         // Step 5: VLM 推理
-        result.execution_log.push("Step 5: 执行 VLM 推理...".to_string());
+        result
+            .execution_log
+            .push("Step 5: 执行 VLM 推理...".to_string());
         let vlm_result = self.run_vlm_inference_with_details(&result.prompt.full_prompt)?;
-        result.execution_log.push(format!("  VLM 回答长度：{} 字符", vlm_result.content.len()));
+        result
+            .execution_log
+            .push(format!("  VLM 回答长度：{} 字符", vlm_result.content.len()));
         result.vlm_response = Some(vlm_result);
         result.execution_log.push("完成".to_string());
 
@@ -608,15 +689,24 @@ impl AnalysisPipeline {
         // Step 2: 推理几何关系
         execution_log.push("Step 2: 推理几何关系...".to_string());
         let reasoning_result = self.reasoner.find_all_relations(primitives);
-        execution_log.push(format!("  发现 {} 个几何关系", reasoning_result.relations.len()));
+        execution_log.push(format!(
+            "  发现 {} 个几何关系",
+            reasoning_result.relations.len()
+        ));
 
         // Step 3: 约束合法性校验
         let verification_result = if !self.config.skip_verification {
             execution_log.push("Step 3: 校验约束合法性...".to_string());
-            let result = self.verifier.verify(primitives, &reasoning_result.relations)?;
+            let result = self
+                .verifier
+                .verify(primitives, &reasoning_result.relations)?;
             execution_log.push(format!(
                 "  校验结果：{} (评分：{:.2})",
-                if result.is_valid { "通过" } else { "未通过" },
+                if result.is_valid {
+                    "通过"
+                } else {
+                    "未通过"
+                },
                 result.overall_score
             ));
             Some(result)
@@ -636,7 +726,7 @@ impl AnalysisPipeline {
         );
         let step4_latency = step4_start.elapsed().as_millis() as u64;
         execution_log.push(format!("  提示词长度：{} 字符", prompt.full_prompt.len()));
-        
+
         let mut tool_call_chain = ToolCallChain::new();
         tool_call_chain.add_step(ToolCallStep {
             step: 4,
@@ -645,9 +735,10 @@ impl AnalysisPipeline {
             latency_ms: step4_latency,
             success: true,
             error: None,
-            output_stats: HashMap::from([
-                ("prompt_length".to_string(), serde_json::json!(prompt.full_prompt.len())),
-            ]),
+            output_stats: HashMap::from([(
+                "prompt_length".to_string(),
+                serde_json::json!(prompt.full_prompt.len()),
+            )]),
         });
 
         let total_latency_ms = start_time.elapsed().as_millis() as u64;
@@ -676,11 +767,11 @@ mod tests {
         let config = AnalysisConfig::default();
         let vlm_config = VlmConfig::new(
             "https://zazaz.top/v1",
-            "test_key",  // 测试用 key
+            "test_key", // 测试用 key
             "./Qwen3.5-27B-FP8",
         );
         let _pipeline = AnalysisPipeline::with_vlm_config(config, vlm_config);
-        assert!(true); // 能创建成功即可
+        // 能创建成功即可
     }
 
     #[test]
@@ -688,12 +779,10 @@ mod tests {
         // 测试仅几何模式管线创建（不需要 API Key）
         let config = AnalysisConfig::default();
         let pipeline = AnalysisPipeline::geometry_only(config);
-        
+
         // 验证 VLM 未配置
         assert!(!pipeline.has_vlm());
-        
         // 验证能正常创建
-        assert!(true);
     }
 
     #[test]
@@ -701,16 +790,16 @@ mod tests {
         // 测试仅几何模式的 SVG 注入
         let config = AnalysisConfig::default();
         let pipeline = AnalysisPipeline::geometry_only(config);
-        
+
         let svg_content = r#"<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg">
             <line x1="0" y1="0" x2="100" y2="0" />
             <line x1="0" y1="0" x2="0" y2="100" />
         </svg>"#;
-        
+
         // 应该能成功执行几何分析（不含 VLM 推理）
         let result = pipeline.inject_from_svg_string(svg_content, "分析图形");
         assert!(result.is_ok(), "几何分析失败：{:?}", result);
-        
+
         let result = result.unwrap();
         assert!(result.primitive_count() > 0);
         assert!(result.vlm_response.is_none()); // 验证没有 VLM 响应
@@ -721,11 +810,11 @@ mod tests {
         // 测试仅几何模式调用 VLM 推理应该返回错误
         let config = AnalysisConfig::default();
         let pipeline = AnalysisPipeline::geometry_only(config);
-        
+
         let svg_content = r#"<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg">
             <rect x="0" y="0" width="100" height="100" />
         </svg>"#;
-        
+
         // 调用 with_vlm 方法应该返回错误
         let result = pipeline.inject_from_svg_string_with_vlm(svg_content, "分析图形");
         assert!(result.is_err());
@@ -743,8 +832,10 @@ mod tests {
         assert!(config.validate().is_err());
 
         // 测试自动修正
-        let mut config = AnalysisConfig::default();
-        config.angle_tolerance = -0.01;
+        let mut config = AnalysisConfig {
+            angle_tolerance: -0.01,
+            ..Default::default()
+        };
         let warnings = config.validate_or_fix();
         assert!(!warnings.is_empty());
         assert!((config.angle_tolerance - 0.01).abs() < 1e-10);

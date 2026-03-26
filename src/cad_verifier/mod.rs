@@ -44,9 +44,9 @@
 //! }
 //! ```
 
-use crate::geometry::primitives::{Point, Line, Polygon, Primitive};
 use crate::cad_reasoning::GeometricRelation;
 use crate::error::{CadAgentError, CadAgentResult, GeometryToleranceConfig};
+use crate::geometry::primitives::{Line, Point, Polygon, Primitive};
 use serde::{Deserialize, Serialize};
 use tokitai::tool;
 
@@ -138,14 +138,9 @@ pub struct MissingConstraint {
 #[serde(tag = "issue_type", rename_all = "snake_case")]
 pub enum GeometryIssue {
     /// 线段长度为 0
-    ZeroLengthLine {
-        line_id: usize,
-    },
+    ZeroLengthLine { line_id: usize },
     /// 圆半径为 0 或负数
-    InvalidCircleRadius {
-        circle_id: usize,
-        radius: f64,
-    },
+    InvalidCircleRadius { circle_id: usize, radius: f64 },
     /// 多边形顶点不足
     InsufficientPolygonVertices {
         polygon_id: usize,
@@ -307,7 +302,11 @@ impl ConstraintVerifier {
         let mut geometry_issues = Vec::new();
         let mut verification_log = Vec::new();
 
-        verification_log.push(format!("开始校验 {} 个基元和 {} 个约束关系", primitives.len(), relations.len()));
+        verification_log.push(format!(
+            "开始校验 {} 个基元和 {} 个约束关系",
+            primitives.len(),
+            relations.len()
+        ));
 
         // 1. 几何合法性校验
         if self.config.detect_geometry_issues {
@@ -373,9 +372,7 @@ impl ConstraintVerifier {
                 Primitive::Line(line) => {
                     // 检查零长度线段
                     if line.length() < self.config.tolerance.distance_tolerance {
-                        issues.push(GeometryIssue::ZeroLengthLine {
-                            line_id: id,
-                        });
+                        issues.push(GeometryIssue::ZeroLengthLine { line_id: id });
                     }
                 }
                 Primitive::Circle(circle) => {
@@ -410,8 +407,11 @@ impl ConstraintVerifier {
             // 坐标范围检查
             if let Some(range) = &self.config.coordinate_range_check {
                 if let Some(bbox) = prim.bounding_box() {
-                    if bbox.min.x < range[0] || bbox.min.y < range[1]
-                        || bbox.max.x > range[2] || bbox.max.y > range[3] {
+                    if bbox.min.x < range[0]
+                        || bbox.min.y < range[1]
+                        || bbox.max.x > range[2]
+                        || bbox.max.y > range[3]
+                    {
                         issues.push(GeometryIssue::CoordinateOutOfRange {
                             primitive_id: id,
                             coordinate: bbox.min,
@@ -435,12 +435,18 @@ impl ConstraintVerifier {
 
         for rel in relations {
             let key = match rel {
-                GeometricRelation::Parallel { line1_id, line2_id, .. }
-                | GeometricRelation::Perpendicular { line1_id, line2_id, .. }
-                | GeometricRelation::Collinear { line1_id, line2_id, .. }
-                | GeometricRelation::EqualDistance { line1_id, line2_id, .. } => {
-                    Some((*line1_id.min(line2_id), *line1_id.max(line2_id)))
+                GeometricRelation::Parallel {
+                    line1_id, line2_id, ..
                 }
+                | GeometricRelation::Perpendicular {
+                    line1_id, line2_id, ..
+                }
+                | GeometricRelation::Collinear {
+                    line1_id, line2_id, ..
+                }
+                | GeometricRelation::EqualDistance {
+                    line1_id, line2_id, ..
+                } => Some((*line1_id.min(line2_id), *line1_id.max(line2_id))),
                 _ => None,
             };
 
@@ -451,18 +457,32 @@ impl ConstraintVerifier {
 
         // 检测平行 - 垂直冲突
         for rels in line_relations.values() {
-            let has_parallel = rels.iter().any(|r| matches!(r, GeometricRelation::Parallel { .. }));
-            let has_perpendicular = rels.iter().any(|r| matches!(r, GeometricRelation::Perpendicular { .. }));
+            let has_parallel = rels
+                .iter()
+                .any(|r| matches!(r, GeometricRelation::Parallel { .. }));
+            let has_perpendicular = rels
+                .iter()
+                .any(|r| matches!(r, GeometricRelation::Perpendicular { .. }));
 
             if has_parallel && has_perpendicular {
                 if let (Some(parallel), Some(perp)) = (
-                    rels.iter().find(|r| matches!(r, GeometricRelation::Parallel { .. })),
-                    rels.iter().find(|r| matches!(r, GeometricRelation::Perpendicular { .. })),
+                    rels.iter()
+                        .find(|r| matches!(r, GeometricRelation::Parallel { .. })),
+                    rels.iter()
+                        .find(|r| matches!(r, GeometricRelation::Perpendicular { .. })),
                 ) {
                     if let (
-                        GeometricRelation::Parallel { line1_id, line2_id, confidence: p_conf, .. },
-                        GeometricRelation::Perpendicular { confidence: v_conf, .. },
-                    ) = (parallel, perp) {
+                        GeometricRelation::Parallel {
+                            line1_id,
+                            line2_id,
+                            confidence: p_conf,
+                            ..
+                        },
+                        GeometricRelation::Perpendicular {
+                            confidence: v_conf, ..
+                        },
+                    ) = (parallel, perp)
+                    {
                         conflicts.push(Conflict::ParallelPerpendicular {
                             line1_id: *line1_id,
                             line2_id: *line2_id,
@@ -475,15 +495,23 @@ impl ConstraintVerifier {
         }
 
         // 检测同心 - 相切冲突
-        let mut circle_relations: std::collections::HashMap<(usize, usize), Vec<&GeometricRelation>> =
-            std::collections::HashMap::new();
+        let mut circle_relations: std::collections::HashMap<
+            (usize, usize),
+            Vec<&GeometricRelation>,
+        > = std::collections::HashMap::new();
 
         for rel in relations {
             let key = match rel {
-                GeometricRelation::Concentric { circle1_id, circle2_id, .. }
-                | GeometricRelation::TangentCircleCircle { circle1_id, circle2_id, .. } => {
-                    Some((*circle1_id.min(circle2_id), *circle1_id.max(circle2_id)))
+                GeometricRelation::Concentric {
+                    circle1_id,
+                    circle2_id,
+                    ..
                 }
+                | GeometricRelation::TangentCircleCircle {
+                    circle1_id,
+                    circle2_id,
+                    ..
+                } => Some((*circle1_id.min(circle2_id), *circle1_id.max(circle2_id))),
                 _ => None,
             };
 
@@ -493,18 +521,32 @@ impl ConstraintVerifier {
         }
 
         for rels in circle_relations.values() {
-            let has_concentric = rels.iter().any(|r| matches!(r, GeometricRelation::Concentric { .. }));
-            let has_tangent = rels.iter().any(|r| matches!(r, GeometricRelation::TangentCircleCircle { .. }));
+            let has_concentric = rels
+                .iter()
+                .any(|r| matches!(r, GeometricRelation::Concentric { .. }));
+            let has_tangent = rels
+                .iter()
+                .any(|r| matches!(r, GeometricRelation::TangentCircleCircle { .. }));
 
             if has_concentric && has_tangent {
                 if let (Some(conc), Some(tan)) = (
-                    rels.iter().find(|r| matches!(r, GeometricRelation::Concentric { .. })),
-                    rels.iter().find(|r| matches!(r, GeometricRelation::TangentCircleCircle { .. })),
+                    rels.iter()
+                        .find(|r| matches!(r, GeometricRelation::Concentric { .. })),
+                    rels.iter()
+                        .find(|r| matches!(r, GeometricRelation::TangentCircleCircle { .. })),
                 ) {
                     if let (
-                        GeometricRelation::Concentric { circle1_id, circle2_id, confidence: c_conf, .. },
-                        GeometricRelation::TangentCircleCircle { confidence: t_conf, .. },
-                    ) = (conc, tan) {
+                        GeometricRelation::Concentric {
+                            circle1_id,
+                            circle2_id,
+                            confidence: c_conf,
+                            ..
+                        },
+                        GeometricRelation::TangentCircleCircle {
+                            confidence: t_conf, ..
+                        },
+                    ) = (conc, tan)
+                    {
                         conflicts.push(Conflict::ConcentricTangent {
                             circle1_id: *circle1_id,
                             circle2_id: *circle2_id,
@@ -569,7 +611,10 @@ impl ConstraintVerifier {
         let mut adj: HashMap<usize, Vec<usize>> = HashMap::new();
 
         for rel in relations {
-            if let GeometricRelation::Parallel { line1_id, line2_id, .. } = rel {
+            if let GeometricRelation::Parallel {
+                line1_id, line2_id, ..
+            } = rel
+            {
                 adj.entry(*line1_id).or_default().push(*line2_id);
                 adj.entry(*line2_id).or_default().push(*line1_id);
             }
@@ -626,11 +671,11 @@ impl ConstraintVerifier {
                 for (i, _edge) in edges.iter().enumerate() {
                     // 简化：建议添加垂直约束
                     let _next_i = (i + 1) % edges.len();
-                    
+
                     // 检查是否已有垂直约束
-                    let has_perp = relations.iter().any(|r| {
-                        matches!(r, GeometricRelation::Perpendicular { .. })
-                    });
+                    let has_perp = relations
+                        .iter()
+                        .any(|r| matches!(r, GeometricRelation::Perpendicular { .. }));
 
                     if !has_perp && poly.vertices.len() == 4 {
                         // 四边形建议检查直角
@@ -659,7 +704,12 @@ impl ConstraintVerifier {
 
         for conflict in conflicts {
             match conflict {
-                Conflict::ParallelPerpendicular { line1_id, line2_id, parallel_confidence, perpendicular_confidence } => {
+                Conflict::ParallelPerpendicular {
+                    line1_id,
+                    line2_id,
+                    parallel_confidence,
+                    perpendicular_confidence,
+                } => {
                     let keep_parallel = parallel_confidence > perpendicular_confidence;
                     suggestions.push(FixSuggestion {
                         issue_type: "constraint_conflict".to_string(),
@@ -673,7 +723,11 @@ impl ConstraintVerifier {
                         expected_outcome: "消除几何矛盾".to_string(),
                     });
                 }
-                Conflict::ConcentricTangent { circle1_id, circle2_id, .. } => {
+                Conflict::ConcentricTangent {
+                    circle1_id,
+                    circle2_id,
+                    ..
+                } => {
                     suggestions.push(FixSuggestion {
                         issue_type: "constraint_conflict".to_string(),
                         affected_primitives: vec![*circle1_id, *circle2_id],
@@ -772,14 +826,13 @@ impl ConstraintVerifier {
             return None; // 平行
         }
 
-        let t = ((line2.start.x - line1.start.x) * dy2 - (line2.start.y - line1.start.y) * dx2) / det;
-        let u = ((line2.start.x - line1.start.x) * dy1 - (line2.start.y - line1.start.y) * dx1) / det;
+        let t =
+            ((line2.start.x - line1.start.x) * dy2 - (line2.start.y - line1.start.y) * dx2) / det;
+        let u =
+            ((line2.start.x - line1.start.x) * dy1 - (line2.start.y - line1.start.y) * dx1) / det;
 
         if (0.0..=1.0).contains(&t) && (0.0..=1.0).contains(&u) {
-            Some(Point::new(
-                line1.start.x + t * dx1,
-                line1.start.y + t * dy1,
-            ))
+            Some(Point::new(line1.start.x + t * dx1, line1.start.y + t * dy1))
         } else {
             None
         }
@@ -934,14 +987,12 @@ mod tests {
             Primitive::Line(Line::from_coords([0.0, 0.0], [0.0, 1.0])),
         ];
 
-        let relations = vec![
-            GeometricRelation::Perpendicular {
-                line1_id: 0,
-                line2_id: 1,
-                angle_diff: 0.0,
-                confidence: 1.0,
-            },
-        ];
+        let relations = vec![GeometricRelation::Perpendicular {
+            line1_id: 0,
+            line2_id: 1,
+            angle_diff: 0.0,
+            confidence: 1.0,
+        }];
 
         let verifier = ConstraintVerifier::with_defaults();
         let result = verifier.verify(&primitives, &relations).unwrap();
@@ -982,9 +1033,7 @@ mod tests {
 
     #[test]
     fn test_verify_zero_length_line() {
-        let primitives = vec![
-            Primitive::Line(Line::from_coords([1.0, 1.0], [1.0, 1.0])),
-        ];
+        let primitives = vec![Primitive::Line(Line::from_coords([1.0, 1.0], [1.0, 1.0]))];
 
         let verifier = ConstraintVerifier::with_defaults();
         let result = verifier.verify(&primitives, &[]).unwrap();
@@ -995,13 +1044,11 @@ mod tests {
 
     #[test]
     fn test_verify_tool() {
-        let primitives = vec![
-            Primitive::Line(Line::from_coords([0.0, 0.0], [1.0, 0.0])),
-        ];
+        let primitives = vec![Primitive::Line(Line::from_coords([0.0, 0.0], [1.0, 0.0]))];
 
         let relations: Vec<GeometricRelation> = vec![];
 
-        let tools = ConstraintVerifierTools::default();
+        let tools = ConstraintVerifierTools;
         let result = tools.verify(
             serde_json::to_string(&primitives).unwrap(),
             serde_json::to_string(&relations).unwrap(),

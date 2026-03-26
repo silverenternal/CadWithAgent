@@ -2,8 +2,8 @@
 //!
 //! 基于几何图元自动生成问答对
 
-use crate::geometry::{Primitive, Point, Polygon, Room};
 use crate::cot::templates::QaTemplate;
+use crate::geometry::{Point, Polygon, Primitive, Room};
 use serde::{Deserialize, Serialize};
 
 /// QA 对
@@ -74,11 +74,23 @@ impl QaGenerator {
             let total_area: f64 = rooms.iter().map(|r| r.area).sum();
             qa_pairs.push(QAPair {
                 question: "所有房间的总面积是多少？".to_string(),
-                answer: format!("<thinking>将所有房间面积相加：{}</thinking>总面积为{:.2}平方单位。",
-                    rooms.iter().map(|r| format!("{:.2}", r.area)).collect::<Vec<_>>().join(" + "),
-                    total_area),
-                thinking: Some(format!("将所有房间面积相加：{}", 
-                    rooms.iter().map(|r| format!("{:.2}", r.area)).collect::<Vec<_>>().join(" + "))),
+                answer: format!(
+                    "<thinking>将所有房间面积相加：{}</thinking>总面积为{:.2}平方单位。",
+                    rooms
+                        .iter()
+                        .map(|r| format!("{:.2}", r.area))
+                        .collect::<Vec<_>>()
+                        .join(" + "),
+                    total_area
+                ),
+                thinking: Some(format!(
+                    "将所有房间面积相加：{}",
+                    rooms
+                        .iter()
+                        .map(|r| format!("{:.2}", r.area))
+                        .collect::<Vec<_>>()
+                        .join(" + ")
+                )),
                 question_type: "total_area".to_string(),
             });
         }
@@ -93,7 +105,7 @@ impl QaGenerator {
         // 查找外边界
         if let Some(boundary) = self.find_outer_boundary(primitives) {
             let bbox = self.calculate_bbox(&boundary);
-            
+
             // 宽度问题
             qa_pairs.push(QAPair {
                 question: "建筑的总宽度是多少？".to_string(),
@@ -134,7 +146,10 @@ impl QaGenerator {
         let door_count = self.count_doors(primitives);
         qa_pairs.push(QAPair {
             question: "图中有多少个门？".to_string(),
-            answer: format!("<thinking>查找文本标记'门'或'D'->检测墙体缺口</thinking>图中共有{}个门。", door_count),
+            answer: format!(
+                "<thinking>查找文本标记'门'或'D'->检测墙体缺口</thinking>图中共有{}个门。",
+                door_count
+            ),
             thinking: Some("查找文本标记'门'或'D'->检测墙体缺口".to_string()),
             question_type: "count".to_string(),
         });
@@ -171,14 +186,27 @@ impl QaGenerator {
             // 面积比较
             let mut sorted_rooms = rooms.clone();
             sorted_rooms.sort_by(|a, b| b.area.partial_cmp(&a.area).unwrap());
-            
+
             qa_pairs.push(QAPair {
                 question: "哪个房间的面积最大？".to_string(),
-                answer: format!("<thinking>比较所有房间的面积->{}</thinking>{}的面积最大，为{:.2}平方单位。",
-                    sorted_rooms.iter().map(|r| format!("{}: {:.2}", r.name, r.area)).collect::<Vec<_>>().join(", "),
-                    sorted_rooms[0].name, sorted_rooms[0].area),
-                thinking: Some(format!("比较所有房间的面积->{}", 
-                    sorted_rooms.iter().map(|r| format!("{}: {:.2}", r.name, r.area)).collect::<Vec<_>>().join(", "))),
+                answer: format!(
+                    "<thinking>比较所有房间的面积->{}</thinking>{}的面积最大，为{:.2}平方单位。",
+                    sorted_rooms
+                        .iter()
+                        .map(|r| format!("{}: {:.2}", r.name, r.area))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                    sorted_rooms[0].name,
+                    sorted_rooms[0].area
+                ),
+                thinking: Some(format!(
+                    "比较所有房间的面积->{}",
+                    sorted_rooms
+                        .iter()
+                        .map(|r| format!("{}: {:.2}", r.name, r.area))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )),
                 question_type: "relation".to_string(),
             });
         }
@@ -198,7 +226,7 @@ impl QaGenerator {
     fn extract_rooms(&self, primitives: &[Primitive]) -> Vec<Room> {
         // 简化实现：从 Polygon 图元提取
         let mut rooms = Vec::new();
-        
+
         for (i, prim) in primitives.iter().enumerate() {
             if let Primitive::Polygon(poly) = prim {
                 rooms.push(Room {
@@ -233,10 +261,20 @@ impl QaGenerator {
 
     fn calculate_bbox(&self, polygon: &Polygon) -> (f64, f64, f64, f64) {
         polygon.vertices.iter().fold(
-            (f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY),
+            (
+                f64::INFINITY,
+                f64::INFINITY,
+                f64::NEG_INFINITY,
+                f64::NEG_INFINITY,
+            ),
             |(min_x, min_y, max_x, max_y), p| {
-                (min_x.min(p.x), min_y.min(p.y), max_x.max(p.x), max_y.max(p.y))
-            }
+                (
+                    min_x.min(p.x),
+                    min_y.min(p.y),
+                    max_x.max(p.x),
+                    max_y.max(p.y),
+                )
+            },
         )
     }
 
@@ -253,13 +291,16 @@ impl QaGenerator {
     }
 
     fn count_doors(&self, primitives: &[Primitive]) -> usize {
-        primitives.iter().filter(|p| {
-            if let Primitive::Text { content, .. } = p {
-                content.contains("门") || content.to_lowercase() == "d"
-            } else {
-                false
-            }
-        }).count()
+        primitives
+            .iter()
+            .filter(|p| {
+                if let Primitive::Text { content, .. } = p {
+                    content.contains("门") || content.to_lowercase() == "d"
+                } else {
+                    false
+                }
+            })
+            .count()
     }
 }
 
@@ -282,11 +323,14 @@ impl QaTools {
     pub fn generate_qa(&self, primitives: Vec<Primitive>, question_type: String) -> Vec<QAPair> {
         let generator = QaGenerator::new();
         let all_qa = generator.generate_all(&primitives);
-        
+
         if question_type.is_empty() {
             all_qa
         } else {
-            all_qa.into_iter().filter(|qa| qa.question_type == question_type).collect()
+            all_qa
+                .into_iter()
+                .filter(|qa| qa.question_type == question_type)
+                .collect()
         }
     }
 

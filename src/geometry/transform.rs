@@ -2,7 +2,7 @@
 //!
 //! 提供平移、旋转、缩放、镜像等变换功能
 
-use crate::geometry::{Point, Primitive, Line, Polygon, Circle, Rect};
+use crate::geometry::{Circle, Line, Point, Polygon, Primitive, Rect};
 use serde::{Deserialize, Serialize};
 use tokitai::tool;
 
@@ -21,7 +21,10 @@ pub struct GeometryTransform;
 impl GeometryTransform {
     /// 平移图元
     pub fn translate(&self, primitives: Vec<Primitive>, dx: f64, dy: f64) -> Vec<Primitive> {
-        primitives.into_iter().map(|p| self.translate_primitive(p, dx, dy)).collect()
+        primitives
+            .into_iter()
+            .map(|p| self.translate_primitive(p, dx, dy))
+            .collect()
     }
 
     /// 旋转图元（绕指定中心点，角度为度数）
@@ -32,7 +35,10 @@ impl GeometryTransform {
         center: [f64; 2],
     ) -> Vec<Primitive> {
         let center = Point::from_array(center);
-        primitives.into_iter().map(|p| self.rotate_primitive(p, angle, center)).collect()
+        primitives
+            .into_iter()
+            .map(|p| self.rotate_primitive(p, angle, center))
+            .collect()
     }
 
     /// 缩放图元（相对于指定中心点）
@@ -43,12 +49,18 @@ impl GeometryTransform {
         center: [f64; 2],
     ) -> Vec<Primitive> {
         let center = Point::from_array(center);
-        primitives.into_iter().map(|p| self.scale_primitive(p, factor, center)).collect()
+        primitives
+            .into_iter()
+            .map(|p| self.scale_primitive(p, factor, center))
+            .collect()
     }
 
     /// 镜像图元（关于 X 轴或 Y 轴）
     pub fn mirror(&self, primitives: Vec<Primitive>, axis: MirrorAxis) -> Vec<Primitive> {
-        primitives.into_iter().map(|p| self.mirror_primitive(p, axis)).collect()
+        primitives
+            .into_iter()
+            .map(|p| self.mirror_primitive(p, axis))
+            .collect()
     }
 
     /// 镜像图元（关于任意直线）
@@ -59,7 +71,10 @@ impl GeometryTransform {
         line_end: [f64; 2],
     ) -> Vec<Primitive> {
         let line = Line::from_coords(line_start, line_end);
-        primitives.into_iter().map(|p| self.mirror_primitive_about_line(p, &line)).collect()
+        primitives
+            .into_iter()
+            .map(|p| self.mirror_primitive_about_line(p, &line))
+            .collect()
     }
 }
 
@@ -72,7 +87,11 @@ impl GeometryTransform {
                 Point::new(line.end.x + dx, line.end.y + dy),
             )),
             Primitive::Polygon(poly) => Primitive::Polygon(Polygon {
-                vertices: poly.vertices.iter().map(|p| Point::new(p.x + dx, p.y + dy)).collect(),
+                vertices: poly
+                    .vertices
+                    .iter()
+                    .map(|p| Point::new(p.x + dx, p.y + dy))
+                    .collect(),
                 closed: poly.closed,
             }),
             Primitive::Circle(circle) => Primitive::Circle(Circle::new(
@@ -84,16 +103,28 @@ impl GeometryTransform {
                 Point::new(rect.max.x + dx, rect.max.y + dy),
             )),
             Primitive::Polyline { points, closed } => Primitive::Polyline {
-                points: points.iter().map(|p| Point::new(p.x + dx, p.y + dy)).collect(),
+                points: points
+                    .iter()
+                    .map(|p| Point::new(p.x + dx, p.y + dy))
+                    .collect(),
                 closed,
             },
-            Primitive::Arc { center, radius, start_angle, end_angle } => Primitive::Arc {
+            Primitive::Arc {
+                center,
+                radius,
+                start_angle,
+                end_angle,
+            } => Primitive::Arc {
                 center: Point::new(center.x + dx, center.y + dy),
                 radius,
                 start_angle,
                 end_angle,
             },
-            Primitive::Text { content, position, height } => Primitive::Text {
+            Primitive::Text {
+                content,
+                position,
+                height,
+            } => Primitive::Text {
                 content,
                 position: Point::new(position.x + dx, position.y + dy),
                 height,
@@ -117,18 +148,16 @@ impl GeometryTransform {
 
         match primitive {
             Primitive::Point(p) => Primitive::Point(rotate_point(p)),
-            Primitive::Line(line) => Primitive::Line(Line::new(
-                rotate_point(line.start),
-                rotate_point(line.end),
-            )),
+            Primitive::Line(line) => {
+                Primitive::Line(Line::new(rotate_point(line.start), rotate_point(line.end)))
+            }
             Primitive::Polygon(poly) => Primitive::Polygon(Polygon {
                 vertices: poly.vertices.iter().map(|p| rotate_point(*p)).collect(),
                 closed: poly.closed,
             }),
-            Primitive::Circle(circle) => Primitive::Circle(Circle::new(
-                rotate_point(circle.center),
-                circle.radius,
-            )),
+            Primitive::Circle(circle) => {
+                Primitive::Circle(Circle::new(rotate_point(circle.center), circle.radius))
+            }
             Primitive::Rect(rect) => {
                 // 矩形旋转后可能需要重新计算包围盒
                 let corners = vec![
@@ -144,13 +173,22 @@ impl GeometryTransform {
                 points: points.iter().map(|p| rotate_point(*p)).collect(),
                 closed,
             },
-            Primitive::Arc { center: c, radius, start_angle, end_angle } => Primitive::Arc {
+            Primitive::Arc {
+                center: c,
+                radius,
+                start_angle,
+                end_angle,
+            } => Primitive::Arc {
                 center: rotate_point(c),
                 radius,
                 start_angle: start_angle + angle,
                 end_angle: end_angle + angle,
             },
-            Primitive::Text { content, position, height } => Primitive::Text {
+            Primitive::Text {
+                content,
+                position,
+                height,
+            } => Primitive::Text {
                 content,
                 position: rotate_point(position),
                 height,
@@ -168,10 +206,9 @@ impl GeometryTransform {
 
         match primitive {
             Primitive::Point(p) => Primitive::Point(scale_point(p)),
-            Primitive::Line(line) => Primitive::Line(Line::new(
-                scale_point(line.start),
-                scale_point(line.end),
-            )),
+            Primitive::Line(line) => {
+                Primitive::Line(Line::new(scale_point(line.start), scale_point(line.end)))
+            }
             Primitive::Polygon(poly) => Primitive::Polygon(Polygon {
                 vertices: poly.vertices.iter().map(|p| scale_point(*p)).collect(),
                 closed: poly.closed,
@@ -180,21 +217,29 @@ impl GeometryTransform {
                 scale_point(circle.center),
                 circle.radius * factor,
             )),
-            Primitive::Rect(rect) => Primitive::Rect(Rect::new(
-                scale_point(rect.min),
-                scale_point(rect.max),
-            )),
+            Primitive::Rect(rect) => {
+                Primitive::Rect(Rect::new(scale_point(rect.min), scale_point(rect.max)))
+            }
             Primitive::Polyline { points, closed } => Primitive::Polyline {
                 points: points.iter().map(|p| scale_point(*p)).collect(),
                 closed,
             },
-            Primitive::Arc { center, radius, start_angle, end_angle } => Primitive::Arc {
+            Primitive::Arc {
+                center,
+                radius,
+                start_angle,
+                end_angle,
+            } => Primitive::Arc {
                 center: scale_point(center),
                 radius: radius * factor,
                 start_angle,
                 end_angle,
             },
-            Primitive::Text { content, position, height } => Primitive::Text {
+            Primitive::Text {
+                content,
+                position,
+                height,
+            } => Primitive::Text {
                 content,
                 position: scale_point(position),
                 height: height * factor,
@@ -210,39 +255,43 @@ impl GeometryTransform {
     }
 
     fn mirror_primitive_x(&self, primitive: Primitive) -> Primitive {
-        let mirror_point = |p: Point| -> Point {
-            Point::new(p.x, -p.y)
-        };
+        let mirror_point = |p: Point| -> Point { Point::new(p.x, -p.y) };
 
         match primitive {
             Primitive::Point(p) => Primitive::Point(mirror_point(p)),
-            Primitive::Line(line) => Primitive::Line(Line::new(
-                mirror_point(line.start),
-                mirror_point(line.end),
-            )),
+            Primitive::Line(line) => {
+                Primitive::Line(Line::new(mirror_point(line.start), mirror_point(line.end)))
+            }
             Primitive::Polygon(poly) => Primitive::Polygon(Polygon {
                 vertices: poly.vertices.iter().map(|p| mirror_point(*p)).collect(),
                 closed: poly.closed,
             }),
-            Primitive::Circle(circle) => Primitive::Circle(Circle::new(
-                mirror_point(circle.center),
-                circle.radius,
-            )),
-            Primitive::Rect(rect) => Primitive::Rect(Rect::new(
-                mirror_point(rect.min),
-                mirror_point(rect.max),
-            )),
+            Primitive::Circle(circle) => {
+                Primitive::Circle(Circle::new(mirror_point(circle.center), circle.radius))
+            }
+            Primitive::Rect(rect) => {
+                Primitive::Rect(Rect::new(mirror_point(rect.min), mirror_point(rect.max)))
+            }
             Primitive::Polyline { points, closed } => Primitive::Polyline {
                 points: points.iter().map(|p| mirror_point(*p)).collect(),
                 closed,
             },
-            Primitive::Arc { center, radius, start_angle, end_angle } => Primitive::Arc {
+            Primitive::Arc {
+                center,
+                radius,
+                start_angle,
+                end_angle,
+            } => Primitive::Arc {
                 center: mirror_point(center),
                 radius,
                 start_angle: -start_angle,
                 end_angle: -end_angle,
             },
-            Primitive::Text { content, position, height } => Primitive::Text {
+            Primitive::Text {
+                content,
+                position,
+                height,
+            } => Primitive::Text {
                 content,
                 position: mirror_point(position),
                 height,
@@ -251,39 +300,43 @@ impl GeometryTransform {
     }
 
     fn mirror_primitive_y(&self, primitive: Primitive) -> Primitive {
-        let mirror_point = |p: Point| -> Point {
-            Point::new(-p.x, p.y)
-        };
+        let mirror_point = |p: Point| -> Point { Point::new(-p.x, p.y) };
 
         match primitive {
             Primitive::Point(p) => Primitive::Point(mirror_point(p)),
-            Primitive::Line(line) => Primitive::Line(Line::new(
-                mirror_point(line.start),
-                mirror_point(line.end),
-            )),
+            Primitive::Line(line) => {
+                Primitive::Line(Line::new(mirror_point(line.start), mirror_point(line.end)))
+            }
             Primitive::Polygon(poly) => Primitive::Polygon(Polygon {
                 vertices: poly.vertices.iter().map(|p| mirror_point(*p)).collect(),
                 closed: poly.closed,
             }),
-            Primitive::Circle(circle) => Primitive::Circle(Circle::new(
-                mirror_point(circle.center),
-                circle.radius,
-            )),
-            Primitive::Rect(rect) => Primitive::Rect(Rect::new(
-                mirror_point(rect.min),
-                mirror_point(rect.max),
-            )),
+            Primitive::Circle(circle) => {
+                Primitive::Circle(Circle::new(mirror_point(circle.center), circle.radius))
+            }
+            Primitive::Rect(rect) => {
+                Primitive::Rect(Rect::new(mirror_point(rect.min), mirror_point(rect.max)))
+            }
             Primitive::Polyline { points, closed } => Primitive::Polyline {
                 points: points.iter().map(|p| mirror_point(*p)).collect(),
                 closed,
             },
-            Primitive::Arc { center, radius, start_angle, end_angle } => Primitive::Arc {
+            Primitive::Arc {
+                center,
+                radius,
+                start_angle,
+                end_angle,
+            } => Primitive::Arc {
                 center: mirror_point(center),
                 radius,
                 start_angle: 180.0 - start_angle,
                 end_angle: 180.0 - end_angle,
             },
-            Primitive::Text { content, position, height } => Primitive::Text {
+            Primitive::Text {
+                content,
+                position,
+                height,
+            } => Primitive::Text {
                 content,
                 position: mirror_point(position),
                 height,
@@ -304,10 +357,7 @@ impl GeometryTransform {
 
             // 计算投影
             let t = ((p.x - line.start.x) * dx + (p.y - line.start.y) * dy) / len_sq;
-            let proj = Point::new(
-                line.start.x + t * dx,
-                line.start.y + t * dy,
-            );
+            let proj = Point::new(line.start.x + t * dx, line.start.y + t * dy);
 
             // 镜像点 = 2 * 投影点 - 原点
             Point::new(2.0 * proj.x - p.x, 2.0 * proj.y - p.y)
@@ -315,33 +365,39 @@ impl GeometryTransform {
 
         match primitive {
             Primitive::Point(p) => Primitive::Point(mirror_point(p)),
-            Primitive::Line(line) => Primitive::Line(Line::new(
-                mirror_point(line.start),
-                mirror_point(line.end),
-            )),
+            Primitive::Line(line) => {
+                Primitive::Line(Line::new(mirror_point(line.start), mirror_point(line.end)))
+            }
             Primitive::Polygon(poly) => Primitive::Polygon(Polygon {
                 vertices: poly.vertices.iter().map(|p| mirror_point(*p)).collect(),
                 closed: poly.closed,
             }),
-            Primitive::Circle(circle) => Primitive::Circle(Circle::new(
-                mirror_point(circle.center),
-                circle.radius,
-            )),
-            Primitive::Rect(rect) => Primitive::Rect(Rect::new(
-                mirror_point(rect.min),
-                mirror_point(rect.max),
-            )),
+            Primitive::Circle(circle) => {
+                Primitive::Circle(Circle::new(mirror_point(circle.center), circle.radius))
+            }
+            Primitive::Rect(rect) => {
+                Primitive::Rect(Rect::new(mirror_point(rect.min), mirror_point(rect.max)))
+            }
             Primitive::Polyline { points, closed } => Primitive::Polyline {
                 points: points.iter().map(|p| mirror_point(*p)).collect(),
                 closed,
             },
-            Primitive::Arc { center, radius, start_angle, end_angle } => Primitive::Arc {
+            Primitive::Arc {
+                center,
+                radius,
+                start_angle,
+                end_angle,
+            } => Primitive::Arc {
                 center: mirror_point(center),
                 radius,
                 start_angle,
                 end_angle,
             },
-            Primitive::Text { content, position, height } => Primitive::Text {
+            Primitive::Text {
+                content,
+                position,
+                height,
+            } => Primitive::Text {
                 content,
                 position: mirror_point(position),
                 height,
@@ -370,12 +426,7 @@ impl GeometryTransformTools {
     ///
     /// 平移后的图元列表
     #[tool(name = "translate")]
-    pub fn translate(
-        &self,
-        primitives_json: String,
-        dx: f64,
-        dy: f64,
-    ) -> serde_json::Value {
+    pub fn translate(&self, primitives_json: String, dx: f64, dy: f64) -> serde_json::Value {
         let primitives: Vec<Primitive> = match serde_json::from_str(&primitives_json) {
             Ok(p) => p,
             Err(e) => {
@@ -487,11 +538,7 @@ impl GeometryTransformTools {
     ///
     /// 镜像后的图元列表
     #[tool(name = "mirror")]
-    pub fn mirror(
-        &self,
-        primitives_json: String,
-        axis: String,
-    ) -> serde_json::Value {
+    pub fn mirror(&self, primitives_json: String, axis: String) -> serde_json::Value {
         let primitives: Vec<Primitive> = match serde_json::from_str(&primitives_json) {
             Ok(p) => p,
             Err(e) => {
@@ -550,7 +597,7 @@ mod tests {
             Primitive::Line(Line::from_coords([0.0, 0.0], [1.0, 1.0])),
         ];
 
-        let transform = GeometryTransform::default();
+        let transform = GeometryTransform;
         let result = transform.translate(primitives, 10.0, 20.0);
 
         assert_eq!(result.len(), 2);
@@ -566,7 +613,7 @@ mod tests {
     fn test_rotate() {
         let primitives = vec![Primitive::Point(Point::new(1.0, 0.0))];
 
-        let transform = GeometryTransform::default();
+        let transform = GeometryTransform;
         let result = transform.rotate(primitives, 90.0, [0.0, 0.0]);
 
         assert_eq!(result.len(), 1);
@@ -582,7 +629,7 @@ mod tests {
     fn test_scale() {
         let primitives = vec![Primitive::Point(Point::new(2.0, 4.0))];
 
-        let transform = GeometryTransform::default();
+        let transform = GeometryTransform;
         let result = transform.scale(primitives, 0.5, [0.0, 0.0]);
 
         assert_eq!(result.len(), 1);
@@ -598,7 +645,7 @@ mod tests {
     fn test_mirror_x() {
         let primitives = vec![Primitive::Point(Point::new(3.0, 4.0))];
 
-        let transform = GeometryTransform::default();
+        let transform = GeometryTransform;
         let result = transform.mirror(primitives, MirrorAxis::X);
 
         assert_eq!(result.len(), 1);
@@ -612,7 +659,7 @@ mod tests {
 
     #[test]
     fn test_transform_tools() {
-        let tools = GeometryTransformTools::default();
+        let tools = GeometryTransformTools;
 
         let primitives = r#"[{"type": "point", "x": 0.0, "y": 0.0}]"#;
         let result = tools.translate(primitives.to_string(), 10.0, 20.0);

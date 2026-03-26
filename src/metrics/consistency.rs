@@ -2,7 +2,7 @@
 //!
 //! 评估生成的 DXF 文件中线段是否闭合、几何关系是否正确
 
-use crate::geometry::{Point, Line, Primitive, Polygon};
+use crate::geometry::{Line, Point, Polygon, Primitive};
 use serde::{Deserialize, Serialize};
 
 /// 几何一致性评估结果
@@ -104,7 +104,7 @@ impl ConsistencyChecker {
     /// 检查回路闭合性
     fn check_loop_closure(&self, primitives: &[Primitive]) -> CheckResult {
         let polygons = self.extract_polygons(primitives);
-        
+
         if polygons.is_empty() {
             return CheckResult {
                 name: "loop_closure".to_string(),
@@ -144,7 +144,7 @@ impl ConsistencyChecker {
     /// 检查线段连接性
     fn check_line_connections(&self, primitives: &[Primitive]) -> CheckResult {
         let lines = self.extract_lines(primitives);
-        
+
         if lines.is_empty() {
             return CheckResult {
                 name: "line_connections".to_string(),
@@ -202,7 +202,7 @@ impl ConsistencyChecker {
     /// 检查直角关系
     fn check_orthogonality(&self, primitives: &[Primitive]) -> CheckResult {
         let lines = self.extract_lines(primitives);
-        
+
         if lines.len() < 2 {
             return CheckResult {
                 name: "orthogonality".to_string(),
@@ -226,16 +226,17 @@ impl ConsistencyChecker {
                     || line1.end.distance(&line2.end) < self.distance_tolerance
                 {
                     checked_pairs += 1;
-                    
+
                     let dir1 = line1.direction();
                     let dir2 = line2.direction();
                     let dot = dir1.x * dir2.x + dir1.y * dir2.y;
                     let angle = (dot).abs().acos().to_degrees();
-                    
+
                     // 检查是否接近 90 度
-                    if (angle - 90.0).abs() > self.angle_tolerance 
+                    if (angle - 90.0).abs() > self.angle_tolerance
                         && (angle).abs() > self.angle_tolerance
-                        && (angle - 180.0).abs() > self.angle_tolerance {
+                        && (angle - 180.0).abs() > self.angle_tolerance
+                    {
                         non_ortho_count += 1;
                     }
                 }
@@ -263,7 +264,7 @@ impl ConsistencyChecker {
     /// 检查平行墙
     fn check_parallel_walls(&self, primitives: &[Primitive]) -> CheckResult {
         let lines = self.extract_lines(primitives);
-        
+
         // 简化实现：统计主要方向的线段
         let mut horizontal_count = 0;
         let mut vertical_count = 0;
@@ -290,7 +291,9 @@ impl ConsistencyChecker {
             score,
             details: format!(
                 "水平线段：{}, 垂直线段：{}, 对齐度：{:.1}%",
-                horizontal_count, vertical_count, score * 100.0
+                horizontal_count,
+                vertical_count,
+                score * 100.0
             ),
         }
     }
@@ -328,7 +331,7 @@ impl ConsistencyChecker {
         // 简化检查：共线且有重叠
         let dir1 = line1.direction();
         let dir2 = line2.direction();
-        
+
         // 检查是否平行（可能共线）
         let cross = dir1.x * dir2.y - dir1.y * dir2.x;
         if cross.abs() > 0.01 {
@@ -347,10 +350,10 @@ impl ConsistencyChecker {
         // 检查投影重叠
         let t1 = self.project_point_on_line(&line2.start, line1);
         let t2 = self.project_point_on_line(&line2.end, line1);
-        
+
         let t_min = t1.min(t2);
         let t_max = t1.max(t2);
-        
+
         // 如果投影超出线段范围，则有重叠
         (t_min < 0.0 || t_max > 1.0) && (t_min < 1.0 && t_max > 0.0)
     }
@@ -369,7 +372,7 @@ impl ConsistencyChecker {
 
     fn extract_lines(&self, primitives: &[Primitive]) -> Vec<Line> {
         let mut lines = Vec::new();
-        
+
         for prim in primitives {
             match prim {
                 Primitive::Line(line) => lines.push(line.clone()),
@@ -378,13 +381,13 @@ impl ConsistencyChecker {
                 _ => {}
             }
         }
-        
+
         lines
     }
 
     fn extract_polygons(&self, primitives: &[Primitive]) -> Vec<Polygon> {
         let mut polygons = Vec::new();
-        
+
         for prim in primitives {
             match prim {
                 Primitive::Polygon(poly) => polygons.push(poly.clone()),
@@ -392,7 +395,7 @@ impl ConsistencyChecker {
                 _ => {}
             }
         }
-        
+
         polygons
     }
 }

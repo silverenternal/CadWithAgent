@@ -13,7 +13,10 @@ pub struct JsonExporter;
 
 impl JsonExporter {
     /// 导出图元到 JSON 文件
-    pub fn export(primitives: &[Primitive], output_path: impl AsRef<Path>) -> Result<JsonExportResult, JsonExportError> {
+    pub fn export(
+        primitives: &[Primitive],
+        output_path: impl AsRef<Path>,
+    ) -> Result<JsonExportResult, JsonExportError> {
         let json_str = serde_json::to_string_pretty(primitives)?;
         let mut file = File::create(output_path.as_ref())?;
         file.write_all(json_str.as_bytes())?;
@@ -50,7 +53,10 @@ impl JsonExporter {
     }
 
     /// 导出房间数据
-    pub fn export_rooms(rooms: &[Room], output_path: impl AsRef<Path>) -> Result<JsonExportResult, JsonExportError> {
+    pub fn export_rooms(
+        rooms: &[Room],
+        output_path: impl AsRef<Path>,
+    ) -> Result<JsonExportResult, JsonExportError> {
         let json_str = serde_json::to_string_pretty(rooms)?;
         let mut file = File::create(output_path.as_ref())?;
         file.write_all(json_str.as_bytes())?;

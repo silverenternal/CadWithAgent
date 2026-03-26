@@ -36,9 +36,9 @@
 //! }
 //! ```
 
-use crate::geometry::primitives::{Point, Line, Polygon, Circle, Primitive};
 use crate::error::{CadAgentError, CadAgentResult};
-use rstar::{RTree, AABB, RTreeObject};
+use crate::geometry::primitives::{Circle, Line, Point, Polygon, Primitive};
+use rstar::{RTree, RTreeObject, AABB};
 use serde::{Deserialize, Serialize};
 use tokitai::tool;
 
@@ -261,7 +261,7 @@ impl ReasoningConfig {
     }
 
     /// 验证并自动修正不合理的配置
-    /// 
+    ///
     /// 如果配置参数超出合理范围，会自动修正到默认值并返回警告信息
     pub fn validate_or_fix(&mut self) -> Vec<String> {
         let mut warnings = Vec::new();
@@ -368,7 +368,9 @@ impl GeometricRelationReasoner {
         let mut reasoning_log = Vec::new();
 
         // 提取线段和圆
-        let lines: Vec<(usize, &Line)> = primitives.iter().enumerate()
+        let lines: Vec<(usize, &Line)> = primitives
+            .iter()
+            .enumerate()
             .filter_map(|(id, p)| {
                 if let Primitive::Line(line) = p {
                     Some((id, line))
@@ -378,7 +380,9 @@ impl GeometricRelationReasoner {
             })
             .collect();
 
-        let circles: Vec<(usize, &Circle)> = primitives.iter().enumerate()
+        let circles: Vec<(usize, &Circle)> = primitives
+            .iter()
+            .enumerate()
             .filter_map(|(id, p)| {
                 if let Primitive::Circle(circle) = p {
                     Some((id, circle))
@@ -395,7 +399,7 @@ impl GeometricRelationReasoner {
         if use_rtree {
             // 构建 R-tree 空间索引
             let rtree = Self::build_rtree(primitives);
-            
+
             // 检测平行关系（使用空间索引优化）
             if self.config.detect_parallel {
                 relations.extend(self.detect_parallel_rtree(&lines, &rtree));
@@ -431,7 +435,10 @@ impl GeometricRelationReasoner {
             // 检测包含关系
             relations.extend(self.detect_contains(primitives));
 
-            reasoning_log.push(format!("检测了 {} 个基元之间的几何关系（R-tree 优化）", primitives.len()));
+            reasoning_log.push(format!(
+                "检测了 {} 个基元之间的几何关系（R-tree 优化）",
+                primitives.len()
+            ));
         } else {
             // 使用传统 O(n²) 算法
             // 检测平行关系
@@ -490,13 +497,17 @@ impl GeometricRelationReasoner {
     }
 
     /// 检测同心关系（使用 R-tree 优化）
-    fn detect_concentric_rtree(&self, circles: &[(usize, &Circle)], rtree: &RTree<PrimitiveEnvelope>) -> Vec<GeometricRelation> {
+    fn detect_concentric_rtree(
+        &self,
+        circles: &[(usize, &Circle)],
+        rtree: &RTree<PrimitiveEnvelope>,
+    ) -> Vec<GeometricRelation> {
         let mut relations = Vec::new();
 
         for (id1, c1) in circles.iter() {
             // 使用 R-tree 查找邻近的圆
             let query_bbox = self.create_circle_bbox(c1, c1.radius * 1.5);
-            
+
             let candidates: Vec<_> = rtree
                 .locate_in_envelope(&query_bbox)
                 .filter(|env| env.primitive_id != *id1)
@@ -529,13 +540,23 @@ impl GeometricRelationReasoner {
     }
 
     /// 检测平行关系（使用 R-tree 优化）
-    fn detect_parallel_rtree(&self, lines: &[(usize, &Line)], rtree: &RTree<PrimitiveEnvelope>) -> Vec<GeometricRelation> {
+    fn detect_parallel_rtree(
+        &self,
+        lines: &[(usize, &Line)],
+        rtree: &RTree<PrimitiveEnvelope>,
+    ) -> Vec<GeometricRelation> {
         let mut relations = Vec::new();
 
         for (id1, line1) in lines.iter() {
             // 使用 R-tree 查找邻近的线段
-            let query_bbox = self.create_expanded_bbox(line1.start.x, line1.start.y, line1.end.x, line1.end.y, 0.1);
-            
+            let query_bbox = self.create_expanded_bbox(
+                line1.start.x,
+                line1.start.y,
+                line1.end.x,
+                line1.end.y,
+                0.1,
+            );
+
             let candidates: Vec<_> = rtree
                 .locate_in_envelope(&query_bbox)
                 .filter(|env| env.primitive_id != *id1)
@@ -574,13 +595,23 @@ impl GeometricRelationReasoner {
     }
 
     /// 检测垂直关系（使用 R-tree 优化）
-    fn detect_perpendicular_rtree(&self, lines: &[(usize, &Line)], rtree: &RTree<PrimitiveEnvelope>) -> Vec<GeometricRelation> {
+    fn detect_perpendicular_rtree(
+        &self,
+        lines: &[(usize, &Line)],
+        rtree: &RTree<PrimitiveEnvelope>,
+    ) -> Vec<GeometricRelation> {
         let mut relations = Vec::new();
 
         for (id1, line1) in lines.iter() {
             // 使用 R-tree 查找邻近的线段
-            let query_bbox = self.create_expanded_bbox(line1.start.x, line1.start.y, line1.end.x, line1.end.y, 0.1);
-            
+            let query_bbox = self.create_expanded_bbox(
+                line1.start.x,
+                line1.start.y,
+                line1.end.x,
+                line1.end.y,
+                0.1,
+            );
+
             let candidates: Vec<_> = rtree
                 .locate_in_envelope(&query_bbox)
                 .filter(|env| env.primitive_id != *id1)
@@ -617,13 +648,23 @@ impl GeometricRelationReasoner {
     }
 
     /// 检测共线关系（使用 R-tree 优化）
-    fn detect_collinear_rtree(&self, lines: &[(usize, &Line)], rtree: &RTree<PrimitiveEnvelope>) -> Vec<GeometricRelation> {
+    fn detect_collinear_rtree(
+        &self,
+        lines: &[(usize, &Line)],
+        rtree: &RTree<PrimitiveEnvelope>,
+    ) -> Vec<GeometricRelation> {
         let mut relations = Vec::new();
 
         for (id1, line1) in lines.iter() {
             // 使用 R-tree 查找邻近的线段
-            let query_bbox = self.create_expanded_bbox(line1.start.x, line1.start.y, line1.end.x, line1.end.y, self.config.distance_tolerance);
-            
+            let query_bbox = self.create_expanded_bbox(
+                line1.start.x,
+                line1.start.y,
+                line1.end.x,
+                line1.end.y,
+                self.config.distance_tolerance,
+            );
+
             let candidates: Vec<_> = rtree
                 .locate_in_envelope(&query_bbox)
                 .filter(|env| env.primitive_id != *id1)
@@ -666,19 +707,25 @@ impl GeometricRelationReasoner {
     }
 
     /// 检测线与圆的相切关系（使用 R-tree 优化）
-    fn detect_tangent_line_circle_rtree(&self, lines: &[(usize, &Line)], circles: &[(usize, &Circle)], rtree: &RTree<PrimitiveEnvelope>) -> Vec<GeometricRelation> {
+    fn detect_tangent_line_circle_rtree(
+        &self,
+        lines: &[(usize, &Line)],
+        circles: &[(usize, &Circle)],
+        rtree: &RTree<PrimitiveEnvelope>,
+    ) -> Vec<GeometricRelation> {
         let mut relations = Vec::new();
 
         for (line_id, line) in lines {
             // 使用 R-tree 查找邻近的圆
-            let query_bbox = self.create_expanded_bbox(line.start.x, line.start.y, line.end.x, line.end.y, 0.1);
-            
-            let candidates: Vec<_> = rtree
-                .locate_in_envelope(&query_bbox)
-                .collect();
+            let query_bbox =
+                self.create_expanded_bbox(line.start.x, line.start.y, line.end.x, line.end.y, 0.1);
+
+            let candidates: Vec<_> = rtree.locate_in_envelope(&query_bbox).collect();
 
             for env in candidates {
-                if let Some((circle_id, circle)) = circles.iter().find(|(i, _)| *i == env.primitive_id) {
+                if let Some((circle_id, circle)) =
+                    circles.iter().find(|(i, _)| *i == env.primitive_id)
+                {
                     let dist = self.point_to_line_distance(circle.center, line);
                     let expected_dist = circle.radius;
                     let diff = (dist - expected_dist).abs();
@@ -700,13 +747,17 @@ impl GeometricRelationReasoner {
     }
 
     /// 检测圆与圆的相切关系（使用 R-tree 优化）
-    fn detect_tangent_circle_circle_rtree(&self, circles: &[(usize, &Circle)], rtree: &RTree<PrimitiveEnvelope>) -> Vec<GeometricRelation> {
+    fn detect_tangent_circle_circle_rtree(
+        &self,
+        circles: &[(usize, &Circle)],
+        rtree: &RTree<PrimitiveEnvelope>,
+    ) -> Vec<GeometricRelation> {
         let mut relations = Vec::new();
 
         for (id1, c1) in circles.iter() {
             // 使用 R-tree 查找邻近的圆
             let query_bbox = self.create_circle_bbox(c1, c1.radius * 2.5);
-            
+
             let candidates: Vec<_> = rtree
                 .locate_in_envelope(&query_bbox)
                 .filter(|env| env.primitive_id != *id1)
@@ -754,7 +805,14 @@ impl GeometricRelationReasoner {
     }
 
     /// 创建扩展的包围盒
-    fn create_expanded_bbox(&self, x1: f64, y1: f64, x2: f64, y2: f64, margin: f64) -> AABB<[f64; 2]> {
+    fn create_expanded_bbox(
+        &self,
+        x1: f64,
+        y1: f64,
+        x2: f64,
+        y2: f64,
+        margin: f64,
+    ) -> AABB<[f64; 2]> {
         let min_x = x1.min(x2) - margin;
         let min_y = y1.min(y2) - margin;
         let max_x = x1.max(x2) + margin;
@@ -847,7 +905,7 @@ impl GeometricRelationReasoner {
                 let dir1 = line1.direction();
                 let dir2 = line2.direction();
                 let dot = dir1.x * dir2.x + dir1.y * dir2.y;
-                
+
                 if (1.0 - dot.abs()).abs() > self.config.angle_tolerance {
                     continue;
                 }
@@ -871,7 +929,11 @@ impl GeometricRelationReasoner {
     }
 
     /// 检测线与圆的相切关系
-    fn detect_tangent_line_circle(&self, lines: &[(usize, &Line)], circles: &[(usize, &Circle)]) -> Vec<GeometricRelation> {
+    fn detect_tangent_line_circle(
+        &self,
+        lines: &[(usize, &Line)],
+        circles: &[(usize, &Circle)],
+    ) -> Vec<GeometricRelation> {
         let mut relations = Vec::new();
 
         for (line_id, line) in lines {
@@ -1113,20 +1175,17 @@ impl GeometricRelationReasoner {
     fn point_to_line_distance(&self, point: Point, line: &Line) -> f64 {
         let dx = line.end.x - line.start.x;
         let dy = line.end.y - line.start.y;
-        
+
         if dx == 0.0 && dy == 0.0 {
             return point.distance(&line.start);
         }
 
-        let t = ((point.x - line.start.x) * dx + (point.y - line.start.y) * dy)
-            / (dx * dx + dy * dy);
+        let t =
+            ((point.x - line.start.x) * dx + (point.y - line.start.y) * dy) / (dx * dx + dy * dy);
 
         let t_clamped = t.clamp(0.0, 1.0);
 
-        let closest = Point::new(
-            line.start.x + t_clamped * dx,
-            line.start.y + t_clamped * dy,
-        );
+        let closest = Point::new(line.start.x + t_clamped * dx, line.start.y + t_clamped * dy);
 
         point.distance(&closest)
     }
@@ -1175,7 +1234,7 @@ impl GeometricRelationReasoner {
                 GeometricRelation::Parallel { .. } => stats.parallel_count += 1,
                 GeometricRelation::Perpendicular { .. } => stats.perpendicular_count += 1,
                 GeometricRelation::Collinear { .. } => stats.collinear_count += 1,
-                GeometricRelation::TangentLineCircle { .. } 
+                GeometricRelation::TangentLineCircle { .. }
                 | GeometricRelation::TangentCircleCircle { .. } => stats.tangent_count += 1,
                 GeometricRelation::Concentric { .. } => stats.concentric_count += 1,
                 GeometricRelation::Connected { .. } => stats.connected_count += 1,
@@ -1281,15 +1340,18 @@ impl GeometricReasoningTools {
         let result = reasoner.find_all_relations(&primitives);
 
         // 过滤指定类型的关系
-        let filtered: Vec<&GeometricRelation> = result.relations.iter()
+        let filtered: Vec<&GeometricRelation> = result
+            .relations
+            .iter()
             .filter(|r| {
                 let matches_type = match relation_type.to_lowercase().as_str() {
                     "parallel" => matches!(r, GeometricRelation::Parallel { .. }),
                     "perpendicular" => matches!(r, GeometricRelation::Perpendicular { .. }),
                     "collinear" => matches!(r, GeometricRelation::Collinear { .. }),
-                    "tangent" => matches!(r, 
-                        GeometricRelation::TangentLineCircle { .. } | 
-                        GeometricRelation::TangentCircleCircle { .. }
+                    "tangent" => matches!(
+                        r,
+                        GeometricRelation::TangentLineCircle { .. }
+                            | GeometricRelation::TangentCircleCircle { .. }
                     ),
                     "concentric" => matches!(r, GeometricRelation::Concentric { .. }),
                     "connected" => matches!(r, GeometricRelation::Connected { .. }),
@@ -1317,7 +1379,7 @@ impl GeometricReasoningTools {
             "name": "geometric_relation_reasoner",
             "description": "CAD 几何关系推理：检测平行、垂直、相切、同心等约束关系",
             "supported_relations": [
-                "parallel", "perpendicular", "collinear", 
+                "parallel", "perpendicular", "collinear",
                 "tangent", "concentric", "connected",
                 "contains", "equal_distance", "symmetric"
             ],
@@ -1333,36 +1395,46 @@ impl GeometricReasoningTools {
 impl GeometricReasoningTools {
     fn relation_involves_primitives(&self, relation: &GeometricRelation, ids: &[usize]) -> bool {
         match relation {
-            GeometricRelation::Parallel { line1_id, line2_id, .. } => {
-                ids.contains(line1_id) || ids.contains(line2_id)
-            }
-            GeometricRelation::Perpendicular { line1_id, line2_id, .. } => {
-                ids.contains(line1_id) || ids.contains(line2_id)
-            }
-            GeometricRelation::Collinear { line1_id, line2_id, .. } => {
-                ids.contains(line1_id) || ids.contains(line2_id)
-            }
-            GeometricRelation::TangentLineCircle { line_id, circle_id, .. } => {
-                ids.contains(line_id) || ids.contains(circle_id)
-            }
-            GeometricRelation::TangentCircleCircle { circle1_id, circle2_id, .. } => {
-                ids.contains(circle1_id) || ids.contains(circle2_id)
-            }
-            GeometricRelation::Concentric { circle1_id, circle2_id, .. } => {
-                ids.contains(circle1_id) || ids.contains(circle2_id)
-            }
-            GeometricRelation::Connected { primitive1_id, primitive2_id, .. } => {
-                ids.contains(primitive1_id) || ids.contains(primitive2_id)
-            }
-            GeometricRelation::Contains { container_id, contained_id, .. } => {
-                ids.contains(container_id) || ids.contains(contained_id)
-            }
-            GeometricRelation::EqualDistance { line1_id, line2_id, .. } => {
-                ids.contains(line1_id) || ids.contains(line2_id)
-            }
-            GeometricRelation::Symmetric { primitive1_id, primitive2_id, .. } => {
-                ids.contains(primitive1_id) || ids.contains(primitive2_id)
-            }
+            GeometricRelation::Parallel {
+                line1_id, line2_id, ..
+            } => ids.contains(line1_id) || ids.contains(line2_id),
+            GeometricRelation::Perpendicular {
+                line1_id, line2_id, ..
+            } => ids.contains(line1_id) || ids.contains(line2_id),
+            GeometricRelation::Collinear {
+                line1_id, line2_id, ..
+            } => ids.contains(line1_id) || ids.contains(line2_id),
+            GeometricRelation::TangentLineCircle {
+                line_id, circle_id, ..
+            } => ids.contains(line_id) || ids.contains(circle_id),
+            GeometricRelation::TangentCircleCircle {
+                circle1_id,
+                circle2_id,
+                ..
+            } => ids.contains(circle1_id) || ids.contains(circle2_id),
+            GeometricRelation::Concentric {
+                circle1_id,
+                circle2_id,
+                ..
+            } => ids.contains(circle1_id) || ids.contains(circle2_id),
+            GeometricRelation::Connected {
+                primitive1_id,
+                primitive2_id,
+                ..
+            } => ids.contains(primitive1_id) || ids.contains(primitive2_id),
+            GeometricRelation::Contains {
+                container_id,
+                contained_id,
+                ..
+            } => ids.contains(container_id) || ids.contains(contained_id),
+            GeometricRelation::EqualDistance {
+                line1_id, line2_id, ..
+            } => ids.contains(line1_id) || ids.contains(line2_id),
+            GeometricRelation::Symmetric {
+                primitive1_id,
+                primitive2_id,
+                ..
+            } => ids.contains(primitive1_id) || ids.contains(primitive2_id),
         }
     }
 }
@@ -1418,11 +1490,8 @@ mod tests {
             Primitive::Line(Line::from_coords([0.0, 0.0], [0.0, 1.0])),
         ];
 
-        let tools = GeometricReasoningTools::default();
-        let result = tools.find_relations(
-            serde_json::to_string(&primitives).unwrap(),
-            None,
-        );
+        let tools = GeometricReasoningTools;
+        let result = tools.find_relations(serde_json::to_string(&primitives).unwrap(), None);
 
         assert!(result["success"].as_bool().unwrap_or(false));
         assert!(result["statistics"]["total_count"].as_u64().unwrap_or(0) > 0);

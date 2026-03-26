@@ -20,7 +20,7 @@
 //! println!("解析到 {} 个图元", result.primitives.len());
 //! ```
 
-use crate::geometry::{Point, Line, Polygon, Circle, Primitive};
+use crate::geometry::{Circle, Line, Point, Polygon, Primitive};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Cursor;
@@ -81,13 +81,14 @@ impl DxfParser {
     /// 从 DXF Drawing 提取图元
     fn from_drawing(drawing: &dxf::Drawing) -> Result<DxfResult, DxfError> {
         let mut primitives = Vec::new();
-        let mut metadata = DxfMetadata::default();
-
         // 提取元数据
         // 注意：DXF Header 字段名称较为复杂，当前简化处理
-        metadata.version = drawing.header.version.to_string();
         // TODO: 完善 header 字段访问
-        metadata.units = "Unknown".to_string();
+        let metadata = DxfMetadata {
+            version: drawing.header.version.to_string(),
+            units: "Unknown".to_string(),
+            ..Default::default()
+        };
 
         // 解析实体 - 使用迭代器 API
         // 注意：DXF crate API 较为复杂，当前为简化实现
@@ -121,25 +122,31 @@ impl DxfParser {
                 }
                 dxf::entities::EntityType::LwPolyline(lwpolyline) => {
                     // 使用 vertices 字段访问
-                    let points: Vec<Point> = lwpolyline.vertices.iter()
+                    let points: Vec<Point> = lwpolyline
+                        .vertices
+                        .iter()
                         .map(|v| Point::new(v.x, v.y))
                         .collect();
-                    
+
                     if points.len() >= 2 {
                         let is_closed = lwpolyline.is_closed();
                         if points.len() >= 3 && is_closed {
                             primitives.push(Primitive::Polygon(Polygon::new(points)));
                         } else {
-                            primitives.push(Primitive::Polyline { points, closed: is_closed });
+                            primitives.push(Primitive::Polyline {
+                                points,
+                                closed: is_closed,
+                            });
                         }
                     }
                 }
                 dxf::entities::EntityType::Polyline(polyline) => {
                     // 使用 vertices() 方法访问（返回迭代器）
-                    let points: Vec<Point> = polyline.vertices()
+                    let points: Vec<Point> = polyline
+                        .vertices()
                         .map(|v| Point::new(v.location.x, v.location.y))
                         .collect();
-                    
+
                     if points.len() >= 2 {
                         let is_closed = polyline.is_closed();
                         if points.len() >= 3 && is_closed {
@@ -417,7 +424,11 @@ EOF
 
         assert_eq!(result.primitives.len(), 1);
         match &result.primitives[0] {
-            Primitive::Text { content, position, height } => {
+            Primitive::Text {
+                content,
+                position,
+                height,
+            } => {
                 assert_eq!(content, "Hello World");
                 assert!((position.x - 50.0).abs() < 0.001);
                 assert!((position.y - 50.0).abs() < 0.001);
@@ -469,7 +480,12 @@ EOF
 
         assert_eq!(result.primitives.len(), 1);
         match &result.primitives[0] {
-            Primitive::Arc { center, radius, start_angle, end_angle } => {
+            Primitive::Arc {
+                center,
+                radius,
+                start_angle,
+                end_angle,
+            } => {
                 assert!((center.x - 0.0).abs() < 0.001);
                 assert!((center.y - 0.0).abs() < 0.001);
                 assert!((radius - 50.0).abs() < 0.001);

@@ -2,25 +2,25 @@
 //!
 //! 检测几何图元中的闭合回路
 
-use crate::geometry::{Point, Line, Primitive, Polygon};
+use crate::geometry::{Line, Point, Polygon, Primitive};
 use std::collections::{HashMap, HashSet};
 
 /// 查找所有闭合回路
 pub fn find_closed_loops(primitives: &[Primitive]) -> Vec<Vec<Primitive>> {
     // 提取所有线段
     let lines = extract_lines(primitives);
-    
+
     if lines.is_empty() {
         return vec![];
     }
 
     // 构建邻接表
     let mut adjacency: HashMap<PointKey, Vec<usize>> = HashMap::new();
-    
+
     for (i, line) in lines.iter().enumerate() {
         let start_key = point_to_key(line.start);
         let end_key = point_to_key(line.end);
-        
+
         adjacency.entry(start_key).or_default().push(i);
         adjacency.entry(end_key).or_default().push(i);
     }
@@ -28,15 +28,15 @@ pub fn find_closed_loops(primitives: &[Primitive]) -> Vec<Vec<Primitive>> {
     // 使用 DFS 查找回路
     let mut visited = HashSet::new();
     let mut loops = Vec::new();
-    
+
     for start_point in adjacency.keys() {
         if visited.contains(start_point) {
             continue;
         }
-        
+
         let mut path = Vec::new();
         let mut path_lines = Vec::new();
-        
+
         if dfs_find_loop(
             *start_point,
             *start_point,
@@ -45,14 +45,14 @@ pub fn find_closed_loops(primitives: &[Primitive]) -> Vec<Vec<Primitive>> {
             &lines,
             &adjacency,
             &mut visited,
-        )
-            && path_lines.len() >= 3 {
-                let loop_primitives: Vec<Primitive> = path_lines
-                    .iter()
-                    .map(|&i| Primitive::Line(lines[i].clone()))
-                    .collect();
-                loops.push(loop_primitives);
-            }
+        ) && path_lines.len() >= 3
+        {
+            let loop_primitives: Vec<Primitive> = path_lines
+                .iter()
+                .map(|&i| Primitive::Line(lines[i].clone()))
+                .collect();
+            loops.push(loop_primitives);
+        }
     }
 
     loops
@@ -134,13 +134,16 @@ struct PointKey(i64, i64);
 fn point_to_key(point: Point) -> PointKey {
     // 使用固定精度将浮点数转换为整数
     const SCALE: f64 = 10000.0;
-    PointKey((point.x * SCALE).round() as i64, (point.y * SCALE).round() as i64)
+    PointKey(
+        (point.x * SCALE).round() as i64,
+        (point.y * SCALE).round() as i64,
+    )
 }
 
 /// 查找最大的闭合回路（可能是外墙轮廓）
 pub fn find_outer_boundary(primitives: &[Primitive]) -> Option<Polygon> {
     let loops = find_closed_loops(primitives);
-    
+
     if loops.is_empty() {
         return None;
     }
@@ -189,7 +192,7 @@ pub fn find_inner_loops(primitives: &[Primitive]) -> Vec<Polygon> {
 
         if vertices.len() >= 3 {
             let poly = Polygon::new(vertices);
-            
+
             // 检查是否是内部回路（面积小于外边界）
             if let Some(outer_poly) = &outer {
                 if poly.area() < outer_poly.area() {

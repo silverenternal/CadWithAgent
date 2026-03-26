@@ -2,8 +2,8 @@
 //!
 //! 测试 GeometricRelationReasoner 的各种几何关系检测功能
 
+use cadagent::cad_reasoning::{GeometricRelation, GeometricRelationReasoner, ReasoningConfig};
 use cadagent::prelude::*;
-use cadagent::cad_reasoning::{GeometricRelationReasoner, ReasoningConfig, GeometricRelation};
 
 // ==================== 平行关系检测测试 ====================
 
@@ -242,13 +242,17 @@ fn test_reasoning_config_validation() {
     assert!(config.validate().is_ok());
 
     // 测试无效角度容差
-    let mut invalid_config = ReasoningConfig::default();
-    invalid_config.angle_tolerance = -0.01;
+    let invalid_config = ReasoningConfig {
+        angle_tolerance: -0.01,
+        ..Default::default()
+    };
     assert!(invalid_config.validate().is_err());
 
     // 测试 validate_or_fix 自动修正
-    let mut config_to_fix = ReasoningConfig::default();
-    config_to_fix.angle_tolerance = -0.01;
+    let mut config_to_fix = ReasoningConfig {
+        angle_tolerance: -0.01,
+        ..Default::default()
+    };
     let warnings = config_to_fix.validate_or_fix();
     assert!(!warnings.is_empty());
     assert!((config_to_fix.angle_tolerance - 0.01).abs() < 1e-10);
@@ -260,10 +264,12 @@ fn test_reasoning_config_validation() {
 fn test_performance_with_10_primitives() {
     // 创建 10 条线
     let primitives: Vec<Primitive> = (0..10)
-        .map(|i| Primitive::Line(Line::from_coords(
-            [i as f64 * 10.0, 0.0],
-            [i as f64 * 10.0, 100.0]
-        )))
+        .map(|i| {
+            Primitive::Line(Line::from_coords(
+                [i as f64 * 10.0, 0.0],
+                [i as f64 * 10.0, 100.0],
+            ))
+        })
         .collect();
 
     let reasoner = GeometricRelationReasoner::with_defaults();
@@ -273,7 +279,8 @@ fn test_performance_with_10_primitives() {
     let elapsed = start.elapsed();
 
     println!("10 个基元的关系检测耗时：{:?}", elapsed);
-    println!("平行关系：{}, 垂直关系：{}, 连接关系：{}",
+    println!(
+        "平行关系：{}, 垂直关系：{}, 连接关系：{}",
         result.statistics.parallel_count,
         result.statistics.perpendicular_count,
         result.statistics.connected_count
@@ -299,7 +306,9 @@ fn test_geometric_relation_serialization() {
 
     let deserialized: GeometricRelation = serde_json::from_str(&json).unwrap();
     match deserialized {
-        GeometricRelation::Parallel { line1_id, line2_id, .. } => {
+        GeometricRelation::Parallel {
+            line1_id, line2_id, ..
+        } => {
             assert_eq!(line1_id, 0);
             assert_eq!(line2_id, 1);
         }

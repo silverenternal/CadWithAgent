@@ -2,12 +2,11 @@
 //!
 //! 演示从 SVG 解析到 DXF 导出的完整流程
 
-use cadagent::parser::svg::SvgParser;
-use cadagent::export::{dxf::DxfExporter, json::JsonExporter};
 use cadagent::cot::generator::GeoCotGenerator;
 use cadagent::cot::qa::QaGenerator;
+use cadagent::export::{dxf::DxfExporter, json::JsonExporter};
 use cadagent::metrics::ConsistencyChecker;
-use std::path::PathBuf;
+use cadagent::parser::svg::SvgParser;
 
 fn main() -> anyhow::Result<()> {
     println!("=== CadAgent 完整管线示例 ===\n");
@@ -38,13 +37,20 @@ fn main() -> anyhow::Result<()> {
     println!("\n2. 解析 SVG 文件");
     let svg_result = SvgParser::parse(&svg_path)?;
     println!("   解析到 {} 个图元", svg_result.primitives.len());
-    println!("   SVG 尺寸：{} x {}", svg_result.metadata.width, svg_result.metadata.height);
+    println!(
+        "   SVG 尺寸：{} x {}",
+        svg_result.metadata.width, svg_result.metadata.height
+    );
 
     // 步骤 2: 导出为结构化 JSON
     println!("\n3. 导出为结构化 JSON");
     let json_path = std::env::temp_dir().join("floor_plan.json");
     let json_result = JsonExporter::export(&svg_result.primitives, &json_path)?;
-    println!("   已保存：{} ({} 个图元)", json_path.display(), json_result.entity_count);
+    println!(
+        "   已保存：{} ({} 个图元)",
+        json_path.display(),
+        json_result.entity_count
+    );
 
     // 步骤 3: 生成 Geo-CoT 数据
     println!("\n4. 生成 Geo-CoT 数据");
@@ -52,8 +58,14 @@ fn main() -> anyhow::Result<()> {
     let cot_data = generator.generate(&svg_result.primitives, "分析户型图的房间结构");
 
     println!("   任务：{}", cot_data.task);
-    println!("   感知摘要：{}...", cot_data.perception.chars().take(50).collect::<String>());
-    println!("   推理摘要：{}...", cot_data.reasoning.chars().take(50).collect::<String>());
+    println!(
+        "   感知摘要：{}...",
+        cot_data.perception.chars().take(50).collect::<String>()
+    );
+    println!(
+        "   推理摘要：{}...",
+        cot_data.reasoning.chars().take(50).collect::<String>()
+    );
     println!("   答案：{}", cot_data.answer);
 
     // 保存 CoT 数据
@@ -74,7 +86,10 @@ fn main() -> anyhow::Result<()> {
 
     for (i, qa) in qa_pairs.iter().take(3).enumerate() {
         println!("   Q{}: {}", i + 1, qa.question);
-        println!("      A: {}", qa.answer.chars().take(60).collect::<String>());
+        println!(
+            "      A: {}",
+            qa.answer.chars().take(60).collect::<String>()
+        );
     }
 
     // 保存 QA 数据
@@ -89,17 +104,32 @@ fn main() -> anyhow::Result<()> {
     let consistency_result = checker.check_all(&svg_result.primitives);
 
     println!("   一致性得分：{:.2}", consistency_result.score);
-    println!("   检查结果：{}", if consistency_result.passed { "通过 ✓" } else { "失败 ✗" });
+    println!(
+        "   检查结果：{}",
+        if consistency_result.passed {
+            "通过 ✓"
+        } else {
+            "失败 ✗"
+        }
+    );
 
     for check in &consistency_result.checks {
-        println!("   - {}: {}", check.name, if check.passed { "✓" } else { "✗" });
+        println!(
+            "   - {}: {}",
+            check.name,
+            if check.passed { "✓" } else { "✗" }
+        );
     }
 
     // 步骤 6: 导出 DXF
     println!("\n7. 导出 DXF 文件");
     let dxf_path = std::env::temp_dir().join("floor_plan.dxf");
     let dxf_result = DxfExporter::export(&svg_result.primitives, &dxf_path)?;
-    println!("   已保存：{} ({} 个图元)", dxf_path.display(), dxf_result.entity_count);
+    println!(
+        "   已保存：{} ({} 个图元)",
+        dxf_path.display(),
+        dxf_result.entity_count
+    );
 
     println!("\n=== 管线完成 ===");
     println!("\n生成的文件:");

@@ -101,7 +101,13 @@ impl QaTemplate {
             .replace("{attribute}", attribute)
     }
 
-    pub fn format_answer(&self, thinking: &str, element: &str, attribute: &str, value: &str) -> String {
+    pub fn format_answer(
+        &self,
+        thinking: &str,
+        element: &str,
+        attribute: &str,
+        value: &str,
+    ) -> String {
         self.answer_patterns[0]
             .replace("{thinking}", thinking)
             .replace("{element}", element)

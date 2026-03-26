@@ -2,7 +2,7 @@
 //!
 //! 计算房间面积与真实面积的 IoU 误差
 
-use crate::geometry::{Polygon, Point, Rect};
+use crate::geometry::{Point, Polygon, Rect};
 use serde::{Deserialize, Serialize};
 
 /// IoU 计算结果
@@ -108,11 +108,7 @@ impl IouEvaluator {
     }
 
     /// 近似计算交集和并集（使用网格采样）
-    fn appimate_intersection_union(
-        &self,
-        poly1: &Polygon,
-        poly2: &Polygon,
-    ) -> (f64, f64) {
+    fn appimate_intersection_union(&self, poly1: &Polygon, poly2: &Polygon) -> (f64, f64) {
         // 获取包围盒
         let bbox1 = self.get_bbox(poly1);
         let bbox2 = self.get_bbox(poly2);

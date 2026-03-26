@@ -36,8 +36,8 @@
 //!           结构化数据返回
 //! ```
 
-use crate::llm_reasoning::types::*;
 use crate::analysis::AnalysisPipeline;
+use crate::llm_reasoning::types::*;
 use serde_json::json;
 use thiserror::Error;
 
@@ -102,7 +102,10 @@ impl LlmReasoningEngine {
     /// 执行推理任务
     ///
     /// 这是 LLM 驱动推理的核心入口
-    pub fn reason(&self, request: LlmReasoningRequest) -> Result<LlmReasoningResponse, ReasoningError> {
+    pub fn reason(
+        &self,
+        request: LlmReasoningRequest,
+    ) -> Result<LlmReasoningResponse, ReasoningError> {
         let start_time = std::time::Instant::now();
 
         // 步骤 1: 理解任务（LLM 生成）
@@ -129,8 +132,10 @@ impl LlmReasoningEngine {
         steps.push(ReasoningStep {
             id: 1,
             step_type: StepType::Plan,
-            thought: format!("我将按以下步骤执行：{}", 
-                plan.plan_steps.iter()
+            thought: format!(
+                "我将按以下步骤执行：{}",
+                plan.plan_steps
+                    .iter()
                     .map(|s| format!("{}. {}", s.order, s.description))
                     .collect::<Vec<_>>()
                     .join("; ")
@@ -143,13 +148,13 @@ impl LlmReasoningEngine {
         // 3.3 执行计划步骤
         for plan_step in &plan.plan_steps {
             let step_result = self.execute_plan_step(plan_step, &request.context)?;
-            
+
             if let Some(tool_name) = &plan_step.tool_name {
                 if !tools_used.contains(tool_name) {
                     tools_used.push(tool_name.clone());
                 }
             }
-            
+
             steps.push(step_result);
         }
 
@@ -186,7 +191,7 @@ impl LlmReasoningEngine {
     fn understand_task(&self, request: &LlmReasoningRequest) -> Result<String, ReasoningError> {
         // 实际项目中：调用 LLM API 生成任务理解
         // 这里模拟 LLM 的思考过程
-        
+
         let task_analysis = match request.task_type {
             ReasoningTask::CountRooms => {
                 "这是一个房间计数任务。我需要：1) 识别图纸中的封闭区域 2) 排除外部边界 3) 统计内部房间数量"
@@ -217,10 +222,14 @@ impl LlmReasoningEngine {
     }
 
     /// 步骤 2: 生成推理计划
-    fn generate_plan(&self, request: &LlmReasoningRequest, _understanding: &str) -> Result<ReasoningPlan, ReasoningError> {
+    fn generate_plan(
+        &self,
+        request: &LlmReasoningRequest,
+        _understanding: &str,
+    ) -> Result<ReasoningPlan, ReasoningError> {
         // 实际项目中：调用 LLM API 生成计划
         // 这里根据任务类型返回预定义的计划模板
-        
+
         let plan_steps = match request.task_type {
             ReasoningTask::CountRooms => {
                 vec![
@@ -293,7 +302,8 @@ impl LlmReasoningEngine {
             }
         };
 
-        let required_tools = plan_steps.iter()
+        let required_tools = plan_steps
+            .iter()
             .filter_map(|s| s.tool_name.clone())
             .collect();
 
@@ -305,7 +315,11 @@ impl LlmReasoningEngine {
     }
 
     /// 步骤 3: 执行计划步骤
-    fn execute_plan_step(&self, plan_step: &PlanStep, context: &serde_json::Value) -> Result<ReasoningStep, ReasoningError> {
+    fn execute_plan_step(
+        &self,
+        plan_step: &PlanStep,
+        context: &serde_json::Value,
+    ) -> Result<ReasoningStep, ReasoningError> {
         let thought = format!("执行步骤 {}: {}", plan_step.order, plan_step.description);
 
         // 如果需要调用工具
@@ -322,7 +336,11 @@ impl LlmReasoningEngine {
                         tool_call: Some(ToolCallInfo {
                             tool_name: tool_name.clone(),
                             arguments: json!({"context": context}),
-                            status: if result.is_ok() { ToolCallStatus::Success } else { ToolCallStatus::Failed },
+                            status: if result.is_ok() {
+                                ToolCallStatus::Success
+                            } else {
+                                ToolCallStatus::Failed
+                            },
                         }),
                         observation: result.ok(),
                         conclusion: Some("几何数据处理完成".to_string()),
@@ -343,7 +361,10 @@ impl LlmReasoningEngine {
     }
 
     /// 调用几何处理流水线（使用 analysis 模块）
-    fn call_geometry_pipeline(&self, context: &serde_json::Value) -> Result<serde_json::Value, serde_json::Value> {
+    fn call_geometry_pipeline(
+        &self,
+        context: &serde_json::Value,
+    ) -> Result<serde_json::Value, serde_json::Value> {
         // 如果分析管线未初始化，返回模拟数据
         let pipeline = match &self.analysis_pipeline {
             Some(p) => p,
@@ -379,12 +400,17 @@ impl LlmReasoningEngine {
     }
 
     /// 步骤 4: 生成结论
-    fn generate_conclusion(&self, steps: &[ReasoningStep], request: &LlmReasoningRequest) -> Result<(String, f64), ReasoningError> {
+    fn generate_conclusion(
+        &self,
+        steps: &[ReasoningStep],
+        request: &LlmReasoningRequest,
+    ) -> Result<(String, f64), ReasoningError> {
         // 实际项目中：调用 LLM API 生成结论
         // 这里根据任务类型和推理步骤生成结论
-        
+
         // 查找工具调用结果
-        let tool_observation = steps.iter()
+        let tool_observation = steps
+            .iter()
             .find(|s| s.step_type == StepType::ToolUse)
             .and_then(|s| s.observation.as_ref());
 
@@ -407,9 +433,7 @@ impl LlmReasoningEngine {
                     ("无法计算面积".to_string(), 0.3)
                 }
             }
-            _ => {
-                ("分析完成".to_string(), 0.7)
-            }
+            _ => ("分析完成".to_string(), 0.7),
         };
 
         Ok((answer, confidence))
@@ -457,7 +481,7 @@ mod tests {
 
         let response = engine.reason(request);
         assert!(response.is_ok());
-        
+
         let response = response.unwrap();
         assert_eq!(response.chain_of_thought.state, ReasoningState::Completed);
         assert!(!response.chain_of_thought.steps.is_empty());
@@ -478,7 +502,7 @@ mod tests {
 
         let response = engine.reason(request);
         assert!(response.is_ok());
-        
+
         let response = response.unwrap();
         assert!(response.chain_of_thought.confidence > 0.0);
         assert!(!response.tools_used.is_empty());
@@ -499,7 +523,7 @@ mod tests {
 
         // 验证思维链结构
         assert!(cot.steps.len() >= 3); // 至少包含理解、规划、结论
-        
+
         // 验证步骤类型顺序
         assert_eq!(cot.steps[0].step_type, StepType::Understand);
         assert_eq!(cot.steps[1].step_type, StepType::Plan);
