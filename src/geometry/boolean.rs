@@ -5,7 +5,7 @@
 //! 注意：完整的布尔运算需要复杂的几何算法，
 //! 这里提供基础框架，后续可集成 geo-bool 等库
 
-use crate::geometry::{Polygon, Point};
+use crate::geometry::{Point, Polygon};
 
 /// 布尔运算结果
 #[derive(Debug, Clone)]
@@ -280,7 +280,10 @@ pub fn lines_intersect(line1: &crate::geometry::Line, line2: &crate::geometry::L
 }
 
 /// 计算线段交点
-pub fn line_intersection(line1: &crate::geometry::Line, line2: &crate::geometry::Line) -> Option<Point> {
+pub fn line_intersection(
+    line1: &crate::geometry::Line,
+    line2: &crate::geometry::Line,
+) -> Option<Point> {
     let p1 = line1.start;
     let p2 = line1.end;
     let p3 = line2.start;

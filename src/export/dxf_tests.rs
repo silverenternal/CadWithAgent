@@ -2,10 +2,8 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::geometry::{Point, Primitive, Line, Circle, Polygon, Rect};
-    use crate::export::dxf::{
-        DxfExporter, DxfExportResult, DxfExportError,
-    };
+    use crate::export::dxf::{DxfExportError, DxfExportResult, DxfExporter};
+    use crate::geometry::{Circle, Line, Point, Polygon, Primitive, Rect};
     use std::fs;
     use tempfile::NamedTempFile;
 
@@ -107,7 +105,10 @@ mod tests {
 
     #[test]
     fn test_export_line() {
-        let primitives = vec![Primitive::Line(Line::new(Point::new(0.0, 0.0), Point::new(5.0, 5.0)))];
+        let primitives = vec![Primitive::Line(Line::new(
+            Point::new(0.0, 0.0),
+            Point::new(5.0, 5.0),
+        ))];
         let temp_file = NamedTempFile::new().unwrap();
         let temp_path = temp_file.path().to_path_buf();
 
@@ -160,7 +161,10 @@ mod tests {
 
     #[test]
     fn test_export_rect() {
-        let primitives = vec![Primitive::Rect(Rect::new(Point::new(0.0, 0.0), Point::new(10.0, 10.0)))];
+        let primitives = vec![Primitive::Rect(Rect::new(
+            Point::new(0.0, 0.0),
+            Point::new(10.0, 10.0),
+        ))];
         let temp_file = NamedTempFile::new().unwrap();
         let temp_path = temp_file.path().to_path_buf();
 
@@ -219,7 +223,11 @@ mod tests {
     #[test]
     fn test_export_polyline_open() {
         let primitives = vec![Primitive::Polyline {
-            points: vec![Point::new(0.0, 0.0), Point::new(5.0, 5.0), Point::new(10.0, 0.0)],
+            points: vec![
+                Point::new(0.0, 0.0),
+                Point::new(5.0, 5.0),
+                Point::new(10.0, 0.0),
+            ],
             closed: false,
         }];
         let temp_file = NamedTempFile::new().unwrap();
@@ -239,7 +247,11 @@ mod tests {
     #[test]
     fn test_export_polyline_closed() {
         let primitives = vec![Primitive::Polyline {
-            points: vec![Point::new(0.0, 0.0), Point::new(5.0, 5.0), Point::new(10.0, 0.0)],
+            points: vec![
+                Point::new(0.0, 0.0),
+                Point::new(5.0, 5.0),
+                Point::new(10.0, 0.0),
+            ],
             closed: true,
         }];
         let temp_file = NamedTempFile::new().unwrap();
@@ -300,7 +312,8 @@ mod tests {
     #[test]
     fn test_dxf_error_from_json() {
         let invalid_json = "invalid json";
-        let parse_error: serde_json::Error = serde_json::from_str::<serde_json::Value>(invalid_json).unwrap_err();
+        let parse_error: serde_json::Error =
+            serde_json::from_str::<serde_json::Value>(invalid_json).unwrap_err();
         let dxf_error: DxfExportError = DxfExportError::from(parse_error);
 
         let error_str = format!("{}", dxf_error);
@@ -327,18 +340,18 @@ mod tests {
 
         // 验证 DXF 文件结构
         let content = fs::read_to_string(&temp_path).unwrap();
-        
+
         // 检查 DXF 文件头
         assert!(content.contains("SECTION"));
         assert!(content.contains("HEADER"));
         assert!(content.contains("ENDSEC"));
-        
+
         // 检查表部分
         assert!(content.contains("TABLES"));
-        
+
         // 检查实体部分
         assert!(content.contains("ENTITIES"));
-        
+
         // 检查文件结束标记
         assert!(content.contains("EOF"));
     }
@@ -347,7 +360,7 @@ mod tests {
     fn test_export_from_json() {
         let primitives = create_test_primitives();
         let json_str = serde_json::to_string(&primitives).unwrap();
-        
+
         let temp_file = NamedTempFile::new().unwrap();
         let temp_path = temp_file.path().to_path_buf();
 
@@ -381,7 +394,11 @@ mod tests {
         let primitives = vec![
             Primitive::Point(Point::new(0.0, 0.0)),
             Primitive::Line(Line::new(Point::new(0.0, 0.0), Point::new(1.0, 1.0))),
-            Primitive::Polygon(Polygon::new(vec![Point::new(0.0, 0.0), Point::new(1.0, 0.0), Point::new(1.0, 1.0)])),
+            Primitive::Polygon(Polygon::new(vec![
+                Point::new(0.0, 0.0),
+                Point::new(1.0, 0.0),
+                Point::new(1.0, 1.0),
+            ])),
             Primitive::Circle(Circle::new(Point::new(0.0, 0.0), 5.0)),
             Primitive::Rect(Rect::new(Point::new(0.0, 0.0), Point::new(2.0, 3.0))),
             Primitive::Polyline {

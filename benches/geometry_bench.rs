@@ -2,9 +2,9 @@
 //!
 //! 测试关键几何操作的性能
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use cadagent::cad_reasoning::GeometricRelationReasoner;
 use cadagent::prelude::*;
-use cadagent::cad_reasoning::{GeometricRelationReasoner, ReasoningConfig};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 
 /// 创建测试基元（矩形）
 fn create_rectangle(x: f64, y: f64, width: f64, height: f64) -> Vec<Primitive> {
@@ -30,7 +30,12 @@ fn create_multiple_rectangles(count: usize) -> Vec<Primitive> {
 /// 创建平行线组
 fn create_parallel_lines(count: usize) -> Vec<Primitive> {
     (0..count)
-        .map(|i| Primitive::Line(Line::from_coords([i as f64 * 10.0, 0.0], [i as f64 * 10.0, 100.0])))
+        .map(|i| {
+            Primitive::Line(Line::from_coords(
+                [i as f64 * 10.0, 0.0],
+                [i as f64 * 10.0, 100.0],
+            ))
+        })
         .collect()
 }
 
@@ -39,19 +44,25 @@ fn create_perpendicular_lines(count: usize) -> Vec<Primitive> {
     let mut lines = Vec::new();
     // 垂直线
     for i in 0..count / 2 {
-        lines.push(Primitive::Line(Line::from_coords([i as f64 * 10.0, 0.0], [i as f64 * 10.0, 100.0])));
+        lines.push(Primitive::Line(Line::from_coords(
+            [i as f64 * 10.0, 0.0],
+            [i as f64 * 10.0, 100.0],
+        )));
     }
     // 水平线
     for i in 0..count / 2 {
-        lines.push(Primitive::Line(Line::from_coords([0.0, i as f64 * 10.0], [100.0, i as f64 * 10.0])));
+        lines.push(Primitive::Line(Line::from_coords(
+            [0.0, i as f64 * 10.0],
+            [100.0, i as f64 * 10.0],
+        )));
     }
     lines
 }
 
 fn bench_measure_length(c: &mut Criterion) {
     let measurer = GeometryMeasurer;
-    let start = Point::new(0.0, 0.0);
-    let end = Point::new(3.0, 4.0);
+    let start = [0.0, 0.0];
+    let end = [3.0, 4.0];
 
     c.bench_function("measure_length", |b| {
         b.iter(|| measurer.measure_length(black_box(start), black_box(end)))
@@ -60,12 +71,7 @@ fn bench_measure_length(c: &mut Criterion) {
 
 fn bench_measure_area(c: &mut Criterion) {
     let measurer = GeometryMeasurer;
-    let vertices = vec![
-        [0.0, 0.0],
-        [100.0, 0.0],
-        [100.0, 100.0],
-        [0.0, 100.0],
-    ];
+    let vertices = vec![[0.0, 0.0], [100.0, 0.0], [100.0, 100.0], [0.0, 100.0]];
 
     c.bench_function("measure_area", |b| {
         b.iter(|| measurer.measure_area(black_box(vertices.clone())))
@@ -79,13 +85,9 @@ fn bench_detect_parallel(c: &mut Criterion) {
         let lines = create_parallel_lines(*size);
         let reasoner = GeometricRelationReasoner::with_defaults();
 
-        group.bench_with_input(
-            BenchmarkId::from_parameter(size),
-            &lines,
-            |b, lines| {
-                b.iter(|| reasoner.find_all_relations(black_box(lines)))
-            },
-        );
+        group.bench_with_input(BenchmarkId::from_parameter(size), &lines, |b, lines| {
+            b.iter(|| reasoner.find_all_relations(black_box(lines)))
+        });
     }
     group.finish();
 }
@@ -97,13 +99,9 @@ fn bench_detect_perpendicular(c: &mut Criterion) {
         let lines = create_perpendicular_lines(*size);
         let reasoner = GeometricRelationReasoner::with_defaults();
 
-        group.bench_with_input(
-            BenchmarkId::from_parameter(size),
-            &lines,
-            |b, lines| {
-                b.iter(|| reasoner.find_all_relations(black_box(lines)))
-            },
-        );
+        group.bench_with_input(BenchmarkId::from_parameter(size), &lines, |b, lines| {
+            b.iter(|| reasoner.find_all_relations(black_box(lines)))
+        });
     }
     group.finish();
 }
@@ -118,9 +116,7 @@ fn bench_detect_connected(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::from_parameter(size),
             &primitives,
-            |b, primitives| {
-                b.iter(|| reasoner.find_all_relations(black_box(primitives)))
-            },
+            |b, primitives| b.iter(|| reasoner.find_all_relations(black_box(primitives))),
         );
     }
     group.finish();

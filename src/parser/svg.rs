@@ -12,7 +12,7 @@
 //!
 //! 解析文件时会进行路径遍历检查，防止读取工作目录外的文件
 
-use crate::geometry::{Point, Line, Polygon, Rect, Circle, Primitive};
+use crate::geometry::{Circle, Line, Point, Polygon, Primitive, Rect};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -30,7 +30,7 @@ impl SvgParser {
     /// 如果文件不存在、路径不安全或解析失败，返回 `SvgError`
     pub fn parse(path: impl AsRef<Path>) -> Result<SvgResult, SvgError> {
         let path = path.as_ref();
-        
+
         // 路径遍历防护：验证路径在当前工作目录内
         let canonical_path = path.canonicalize().map_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound {
@@ -39,11 +39,9 @@ impl SvgParser {
                 SvgError::Io(e)
             }
         })?;
-        
-        let cwd = std::env::current_dir().map_err(|e| {
-            SvgError::Io(e)
-        })?;
-        
+
+        let cwd = std::env::current_dir().map_err(SvgError::Io)?;
+
         // 检查路径是否在当前工作目录内
         if !canonical_path.starts_with(&cwd) {
             return Err(SvgError::Security(format!(
@@ -51,7 +49,7 @@ impl SvgParser {
                 canonical_path.display()
             )));
         }
-        
+
         let content = fs::read_to_string(&canonical_path)?;
         Self::parse_string(&content)
     }
@@ -77,9 +75,9 @@ impl SvgParser {
             if !node.is_element() {
                 continue;
             }
-            
+
             let tag_name = node.tag_name().name();
-            
+
             match tag_name {
                 "line" => {
                     if let Some(line) = parse_line_node(&node) {
@@ -157,14 +155,14 @@ fn parse_rect_node(node: &roxmltree::Node) -> Option<Rect> {
     let y = parse_float_attr(node, "y").unwrap_or(0.0);
     let width = parse_float_attr(node, "width")?;
     let height = parse_float_attr(node, "height")?;
-    
+
     // 处理负宽度和高度
     let (w, h) = if width < 0.0 || height < 0.0 {
         (width.abs(), height.abs())
     } else {
         (width, height)
     };
-    
+
     Some(Rect::from_coords([x, y], [x + w, y + h]))
 }
 
@@ -173,11 +171,11 @@ fn parse_circle_node(node: &roxmltree::Node) -> Option<Circle> {
     let cx = parse_float_attr(node, "cx")?;
     let cy = parse_float_attr(node, "cy")?;
     let r = parse_float_attr(node, "r")?;
-    
+
     if r <= 0.0 {
         return None;
     }
-    
+
     Some(Circle::from_coords([cx, cy], r))
 }
 
@@ -187,14 +185,14 @@ fn parse_ellipse_as_circle(node: &roxmltree::Node) -> Option<Circle> {
     let cy = parse_float_attr(node, "cy")?;
     let rx = parse_float_attr(node, "rx")?;
     let ry = parse_float_attr(node, "ry")?;
-    
+
     // 使用平均半径
     let r = (rx + ry) / 2.0;
-    
+
     if r <= 0.0 {
         return None;
     }
-    
+
     Some(Circle::from_coords([cx, cy], r))
 }
 
@@ -210,7 +208,7 @@ fn parse_polygon_node(node: &roxmltree::Node) -> Option<Polygon> {
 /// 解析 points 属性（用于 polygon 和 polyline）
 fn parse_points_attribute(node: &roxmltree::Node) -> Option<Vec<Point>> {
     let points_str = node.attribute("points")?;
-    
+
     let points = points_str
         .split_whitespace()
         .filter_map(|pair| {
@@ -323,7 +321,10 @@ fn parse_path_data(d: &str) -> Vec<Primitive> {
 }
 
 /// 解析坐标（支持相对和绝对坐标）
-fn parse_coord(chars: &mut std::iter::Peekable<std::str::Chars>, _relative: bool) -> Option<(f64, f64)> {
+fn parse_coord(
+    chars: &mut std::iter::Peekable<std::str::Chars>,
+    _relative: bool,
+) -> Option<(f64, f64)> {
     skip_whitespace_and_commas(chars);
 
     // 解析 x
@@ -342,7 +343,7 @@ fn parse_number(chars: &mut std::iter::Peekable<std::str::Chars>) -> Option<f64>
     skip_whitespace_and_commas(chars);
 
     let mut num_str = String::new();
-    
+
     while let Some(&c) = chars.peek() {
         if c.is_numeric() || c == '.' || c == '-' || c == '+' || c == 'e' || c == 'E' {
             num_str.push(c);
@@ -481,11 +482,12 @@ pub fn render_svg_to_png(
     }
 
     // 读取 SVG 文件内容
-    let svg_content = std::fs::read_to_string(&canonical_svg_path)
-        .map_err(|e| SvgRenderError::IoError(std::io::Error::new(
+    let svg_content = std::fs::read_to_string(&canonical_svg_path).map_err(|e| {
+        SvgRenderError::IoError(std::io::Error::new(
             std::io::ErrorKind::PermissionDenied,
             format!("无法读取 SVG 文件：{}", e),
-        )))?;
+        ))
+    })?;
 
     // 安全验证：检查恶意 SVG 内容
     validate_svg_security(&svg_content)?;
@@ -504,15 +506,10 @@ pub fn render_svg_to_png(
     }
 
     // 创建画布
-    let mut pixmap = tiny_skia::Pixmap::new(width, height)
-        .ok_or(SvgRenderError::InvalidSize)?;
+    let mut pixmap = tiny_skia::Pixmap::new(width, height).ok_or(SvgRenderError::InvalidSize)?;
 
     // 渲染 SVG 到画布
-    resvg::render(
-        &tree,
-        tiny_skia::Transform::default(),
-        &mut pixmap.as_mut(),
-    );
+    resvg::render(&tree, tiny_skia::Transform::default(), &mut pixmap.as_mut());
 
     // 保存为 PNG
     pixmap
@@ -533,7 +530,10 @@ pub fn render_svg_to_png(
 ///
 /// # Errors
 /// 如果 SVG 解析失败或渲染失败，返回 `SvgRenderError`
-pub fn render_svg_string_to_png(svg_content: &str, _resolution: u32) -> Result<Vec<u8>, SvgRenderError> {
+pub fn render_svg_string_to_png(
+    svg_content: &str,
+    _resolution: u32,
+) -> Result<Vec<u8>, SvgRenderError> {
     // 安全验证：检查恶意 SVG 内容
     validate_svg_security(svg_content)?;
 
@@ -551,18 +551,14 @@ pub fn render_svg_string_to_png(svg_content: &str, _resolution: u32) -> Result<V
     }
 
     // 创建画布
-    let mut pixmap = tiny_skia::Pixmap::new(width, height)
-        .ok_or(SvgRenderError::InvalidSize)?;
+    let mut pixmap = tiny_skia::Pixmap::new(width, height).ok_or(SvgRenderError::InvalidSize)?;
 
     // 渲染 SVG 到画布
-    resvg::render(
-        &tree,
-        tiny_skia::Transform::default(),
-        &mut pixmap.as_mut(),
-    );
+    resvg::render(&tree, tiny_skia::Transform::default(), &mut pixmap.as_mut());
 
     // 编码为 PNG 数据
-    let png_data = pixmap.encode_png()
+    let png_data = pixmap
+        .encode_png()
         .map_err(|e| SvgRenderError::PngError(format!("PNG 编码失败：{}", e)))?;
 
     Ok(png_data)
@@ -583,21 +579,21 @@ fn validate_svg_security(svg_content: &str) -> Result<(), SvgRenderError> {
     // 检查 script 标签
     if svg_lower.contains("<script") || svg_lower.contains("</script") {
         return Err(SvgRenderError::Security(
-            "SVG 安全检测：不允许使用 <script> 标签".to_string()
+            "SVG 安全检测：不允许使用 <script> 标签".to_string(),
         ));
     }
 
     // 检查 javascript: URL
     if svg_lower.contains("javascript:") {
         return Err(SvgRenderError::Security(
-            "SVG 安全检测：不允许使用 javascript: URL".to_string()
+            "SVG 安全检测：不允许使用 javascript: URL".to_string(),
         ));
     }
 
     // 检查 data: URL（可能包含恶意脚本）
     if svg_lower.contains("data:text/html") {
         return Err(SvgRenderError::Security(
-            "SVG 安全检测：不允许使用 data:text/html URL".to_string()
+            "SVG 安全检测：不允许使用 data:text/html URL".to_string(),
         ));
     }
 
@@ -609,10 +605,10 @@ fn validate_svg_security(svg_content: &str) -> Result<(), SvgRenderError> {
             let doctype_start = svg_content.find("<!DOCTYPE").unwrap_or(0);
             let doctype_end = svg_content.find('>').unwrap_or(svg_content.len());
             let doctype_section = &svg_content[doctype_start..doctype_end];
-            
+
             if doctype_section.contains("<!ENTITY") {
                 return Err(SvgRenderError::Security(
-                    "SVG 安全检测：不允许在 DOCTYPE 中定义实体".to_string()
+                    "SVG 安全检测：不允许在 DOCTYPE 中定义实体".to_string(),
                 ));
             }
         }
@@ -621,15 +617,17 @@ fn validate_svg_security(svg_content: &str) -> Result<(), SvgRenderError> {
     // 检查实体引用数量（防止间接实体扩展攻击）
     let entity_ref_count = svg_content.matches("&").count();
     if entity_ref_count > 1000 {
-        return Err(SvgRenderError::Security(
-            format!("SVG 安全检测：实体引用数量过多（{}），可能存在实体扩展攻击", entity_ref_count)
-        ));
+        return Err(SvgRenderError::Security(format!(
+            "SVG 安全检测：实体引用数量过多（{}），可能存在实体扩展攻击",
+            entity_ref_count
+        )));
     }
 
     // 检查文件大小（防止 DoS 攻击）
-    if svg_content.len() > 10 * 1024 * 1024 { // 10MB 限制
+    if svg_content.len() > 10 * 1024 * 1024 {
+        // 10MB 限制
         return Err(SvgRenderError::Security(
-            "SVG 安全检测：SVG 文件过大（>10MB）".to_string()
+            "SVG 安全检测：SVG 文件过大（>10MB）".to_string(),
         ));
     }
 
@@ -672,7 +670,7 @@ mod tests {
         </svg>"#;
 
         let result = SvgParser::parse_string(svg).unwrap();
-        
+
         assert_eq!(result.primitives.len(), 3);
         assert_eq!(result.metadata.width, "100");
         assert_eq!(result.metadata.height, "100");
@@ -683,7 +681,7 @@ mod tests {
     fn test_parse_polygon() {
         let svg = r#"<svg><polygon points="0,0 100,0 100,100 0,100" /></svg>"#;
         let result = SvgParser::parse_string(svg).unwrap();
-        
+
         assert_eq!(result.primitives.len(), 1);
         match &result.primitives[0] {
             Primitive::Polygon(poly) => {
@@ -697,7 +695,7 @@ mod tests {
     fn test_parse_path() {
         let svg = r#"<svg><path d="M 0 0 L 100 0 L 100 100 L 0 100 Z" /></svg>"#;
         let result = SvgParser::parse_string(svg).unwrap();
-        
+
         assert_eq!(result.primitives.len(), 1);
         match &result.primitives[0] {
             Primitive::Polygon(poly) => {
@@ -756,7 +754,7 @@ mod tests {
 
         assert!(result.is_ok(), "SVG 字符串渲染失败：{:?}", result);
         let png_data = result.unwrap();
-        assert!(png_data.len() > 0, "PNG 数据为空");
+        assert!(!png_data.is_empty(), "PNG 数据为空");
     }
 
     #[test]

@@ -28,13 +28,13 @@
 //! # }
 //! ```
 
+use lru::LruCache;
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
-use lru::LruCache;
-use std::sync::{Arc, Mutex};
 use std::num::NonZeroUsize;
+use std::sync::{Arc, Mutex};
+use thiserror::Error;
 
 /// VLM API 配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -82,10 +82,12 @@ impl VlmConfig {
     /// # Panics
     /// 如果环境变量 `OPENAI_API_KEY` 未设置，将返回错误
     pub fn default_openai() -> Result<Self, VlmError> {
-        let api_key = std::env::var("OPENAI_API_KEY")
-            .map_err(|_| VlmError::AuthError(
-                "环境变量 OPENAI_API_KEY 未设置，请通过 `export OPENAI_API_KEY=your_key` 设置".to_string()
-            ))?;
+        let api_key = std::env::var("OPENAI_API_KEY").map_err(|_| {
+            VlmError::AuthError(
+                "环境变量 OPENAI_API_KEY 未设置，请通过 `export OPENAI_API_KEY=your_key` 设置"
+                    .to_string(),
+            )
+        })?;
 
         Ok(Self {
             base_url: "https://api.openai.com/v1".to_string(),
@@ -97,7 +99,11 @@ impl VlmConfig {
     }
 
     /// 创建自定义配置
-    pub fn new(base_url: impl Into<String>, api_key: impl Into<String>, model: impl Into<String>) -> Self {
+    pub fn new(
+        base_url: impl Into<String>,
+        api_key: impl Into<String>,
+        model: impl Into<String>,
+    ) -> Self {
         Self {
             base_url: base_url.into(),
             api_key: api_key.into(),
@@ -290,9 +296,8 @@ impl VlmClient {
             .build()
             .unwrap_or_else(|_| reqwest::Client::new());
 
-        let cache = LruCache::new(
-            NonZeroUsize::new(cache_size).unwrap_or(NonZeroUsize::new(100).unwrap())
-        );
+        let cache =
+            LruCache::new(NonZeroUsize::new(cache_size).unwrap_or(NonZeroUsize::new(100).unwrap()));
 
         Self {
             config,
@@ -409,7 +414,8 @@ impl VlmClient {
         let mut last_error: Option<VlmError> = None;
 
         while retries < self.config.max_retries {
-            let response = self.client
+            let response = self
+                .client
                 .post(&url)
                 .header("Content-Type", "application/json")
                 .header("Authorization", format!("Bearer {}", self.config.api_key))
@@ -420,7 +426,9 @@ impl VlmClient {
             match response {
                 Ok(resp) => {
                     let status = resp.status();
-                    let bytes = resp.bytes().await
+                    let bytes = resp
+                        .bytes()
+                        .await
                         .map_err(|e| VlmError::HttpError(format!("读取响应失败：{}", e)))?;
 
                     if status.is_success() {
@@ -485,9 +493,7 @@ impl VlmClient {
         if let Ok(handle) = tokio::runtime::Handle::try_current() {
             // 复用现有 runtime
             tokio::task::block_in_place(|| {
-                handle.block_on(async {
-                    self.chat_completions(messages).await
-                })
+                handle.block_on(async { self.chat_completions(messages).await })
             })
         } else {
             // 使用全局运行时池，避免每次创建新 runtime

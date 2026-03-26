@@ -33,9 +33,9 @@
 //! ```
 
 pub mod pipeline;
-pub mod types;
 pub mod tools;
+pub mod types;
 
 pub use pipeline::*;
-pub use types::*;
 pub use tools::*;
+pub use types::*;

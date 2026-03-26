@@ -14,8 +14,8 @@
 //! └─────────────────┘        └─────────────────┘
 //! ```
 
-use cadagent::prelude::*;
 use cadagent::llm_reasoning::{LlmReasoningEngine, LlmReasoningRequest, ReasoningTask};
+use cadagent::prelude::*;
 use serde_json::json;
 
 fn main() {
@@ -37,10 +37,22 @@ fn main() {
     let relations_result = reasoner.find_all_relations(&primitives);
 
     println!("  基元数量：{} 个", primitives.len());
-    println!("  检测到的几何关系：{} 个", relations_result.relations.len());
-    println!("  - 平行关系：{} 对", relations_result.statistics.parallel_count);
-    println!("  - 垂直关系：{} 对", relations_result.statistics.perpendicular_count);
-    println!("  - 连接关系：{} 对", relations_result.statistics.connected_count);
+    println!(
+        "  检测到的几何关系：{} 个",
+        relations_result.relations.len()
+    );
+    println!(
+        "  - 平行关系：{} 对",
+        relations_result.statistics.parallel_count
+    );
+    println!(
+        "  - 垂直关系：{} 对",
+        relations_result.statistics.perpendicular_count
+    );
+    println!(
+        "  - 连接关系：{} 对",
+        relations_result.statistics.connected_count
+    );
     println!();
 
     // ==================== 示例 2: 使用 analysis 管线 ====================
@@ -58,20 +70,18 @@ fn main() {
     "#;
 
     match AnalysisPipeline::with_defaults() {
-        Ok(pipeline) => {
-            match pipeline.inject_from_svg_string(svg_content, "分析这个矩形") {
-                Ok(result) => {
-                    println!("  提示词长度：{} 字符", result.prompt.full_prompt.len());
-                    println!("  基元数量：{} 个", result.primitives.len());
-                    println!("  约束数量：{} 个", result.relations.len());
-                    println!("  执行耗时：{} ms", result.total_latency_ms);
-                }
-                Err(e) => {
-                    println!("  注入上下文失败：{}", e);
-                    println!("  （可能是 API Key 未设置，这是正常的）");
-                }
+        Ok(pipeline) => match pipeline.inject_from_svg_string(svg_content, "分析这个矩形") {
+            Ok(result) => {
+                println!("  提示词长度：{} 字符", result.prompt.full_prompt.len());
+                println!("  基元数量：{} 个", result.primitives.len());
+                println!("  约束数量：{} 个", result.relations.len());
+                println!("  执行耗时：{} ms", result.total_latency_ms);
             }
-        }
+            Err(e) => {
+                println!("  注入上下文失败：{}", e);
+                println!("  （可能是 API Key 未设置，这是正常的）");
+            }
+        },
         Err(e) => {
             println!("  创建管线失败：{}", e);
             println!("  （可能是 API Key 未设置，这是正常的）");
@@ -97,7 +107,10 @@ fn main() {
 
     println!("  任务：{}", response.chain_of_thought.task);
     println!("  答案：{}", response.chain_of_thought.answer);
-    println!("  置信度：{:.0}%", response.chain_of_thought.confidence * 100.0);
+    println!(
+        "  置信度：{:.0}%",
+        response.chain_of_thought.confidence * 100.0
+    );
     println!("  推理步骤：{} 步", response.chain_of_thought.steps.len());
     println!("  使用工具：{:?}", response.tools_used);
     println!();
@@ -137,16 +150,26 @@ fn main() {
     let registry = ToolRegistry::default();
 
     // 测量长度
-    let result = registry.call("measure_length", json!({
-        "start": [0.0, 0.0],
-        "end": [3.0, 4.0]
-    })).unwrap();
+    let result = registry
+        .call(
+            "measure_length",
+            json!({
+                "start": [0.0, 0.0],
+                "end": [3.0, 4.0]
+            }),
+        )
+        .unwrap();
     println!("  测量长度 (0,0) 到 (3,4): {}", result);
 
     // 测量面积
-    let result = registry.call("measure_area", json!({
-        "vertices": [[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]]
-    })).unwrap();
+    let result = registry
+        .call(
+            "measure_area",
+            json!({
+                "vertices": [[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]]
+            }),
+        )
+        .unwrap();
     println!("  测量面积 10x10 正方形：{}", result);
     println!();
 

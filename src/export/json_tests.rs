@@ -2,11 +2,11 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::geometry::{Point, Primitive, Line, Circle, Polygon, Rect};
     use crate::export::json::{
-        JsonExporter, JsonExportResult, JsonExportError,
-        CotExportData, TrainingData, GroundTruth, QAPair, export_qa_dataset,
+        export_qa_dataset, CotExportData, GroundTruth, JsonExportError, JsonExportResult,
+        JsonExporter, QAPair, TrainingData,
     };
+    use crate::geometry::{Circle, Line, Point, Polygon, Primitive, Rect};
     use std::fs;
     use tempfile::NamedTempFile;
 
@@ -179,7 +179,8 @@ mod tests {
             "Thinking about the geometry...",
             "The answer is 42",
             &temp_path,
-        ).unwrap();
+        )
+        .unwrap();
 
         assert!(result.success);
         assert_eq!(result.entity_count, 5);
@@ -282,7 +283,10 @@ mod tests {
 
         let cloned = training_data.clone();
         assert_eq!(cloned.image, training_data.image);
-        assert_eq!(cloned.grounding.primitives.len(), training_data.grounding.primitives.len());
+        assert_eq!(
+            cloned.grounding.primitives.len(),
+            training_data.grounding.primitives.len()
+        );
     }
 
     #[test]
@@ -354,7 +358,8 @@ mod tests {
 
         // 创建一个无效的 JSON 字符串来触发错误
         let invalid_json = "invalid json";
-        let parse_error: serde_json::Error = serde_json::from_str::<serde_json::Value>(invalid_json).unwrap_err();
+        let parse_error: serde_json::Error =
+            serde_json::from_str::<serde_json::Value>(invalid_json).unwrap_err();
         let json_error: JsonExportError = JsonExportError::from(parse_error);
 
         let error_str = format!("{}", json_error);

@@ -80,11 +80,11 @@
 //! println!("推理步骤：{}", response.chain_of_thought.steps.len());
 //! ```
 
-pub mod types;
 pub mod engine;
+pub mod types;
 
-pub use types::*;
 pub use engine::*;
+pub use types::*;
 
 use tokitai::tool;
 
@@ -99,7 +99,7 @@ impl LlmReasoningTools {
     /// # 参数
     ///
     /// * `task` - 任务描述
-    /// * `task_type` - 任务类型："count_rooms", "calculate_area", "measure_dimension", 
+    /// * `task_type` - 任务类型："count_rooms", "calculate_area", "measure_dimension",
     ///                 "detect_doors_windows", "analyze_layout", "custom"
     /// * `context` - 上下文数据（JSON 格式）
     ///
@@ -107,14 +107,9 @@ impl LlmReasoningTools {
     ///
     /// 包含完整思维链和最终答案的响应
     #[tool(name = "llm_reasoning_execute")]
-    pub fn execute(
-        &self,
-        task: String,
-        task_type: String,
-        context: String,
-    ) -> serde_json::Value {
+    pub fn execute(&self, task: String, task_type: String, context: String) -> serde_json::Value {
         let engine = LlmReasoningEngine::new();
-        
+
         let task_type_parsed = match task_type.to_lowercase().as_str() {
             "count_rooms" => ReasoningTask::CountRooms,
             "calculate_area" => ReasoningTask::CalculateArea,
@@ -124,8 +119,8 @@ impl LlmReasoningTools {
             _ => ReasoningTask::Custom,
         };
 
-        let context_json: serde_json::Value = serde_json::from_str(&context)
-            .unwrap_or_else(|_| serde_json::json!({}));
+        let context_json: serde_json::Value =
+            serde_json::from_str(&context).unwrap_or_else(|_| serde_json::json!({}));
 
         let request = LlmReasoningRequest {
             task,
@@ -189,25 +184,25 @@ mod tests {
 
     #[test]
     fn test_llm_reasoning_tools() {
-        let tools = LlmReasoningTools::default();
-        
+        let tools = LlmReasoningTools;
+
         let result = tools.execute(
             "这个户型有多少个房间？".to_string(),
             "count_rooms".to_string(),
             r#"{"drawing_type": "vector", "drawing_data": "test"}"#.to_string(),
         );
-        
+
         assert!(result["success"].as_bool().unwrap_or(false));
         assert!(!result["answer"].as_str().unwrap_or("").is_empty());
     }
 
     #[test]
     fn test_get_reasoning_info() {
-        let tools = LlmReasoningTools::default();
+        let tools = LlmReasoningTools;
         let info = tools.get_reasoning_info();
-        
+
         assert_eq!(info["name"], "llm_driven_reasoning");
         assert_eq!(info["type"], "ai_reasoning");
-        assert!(info["task_types"].as_array().unwrap().len() > 0);
+        assert!(!info["task_types"].as_array().unwrap().is_empty());
     }
 }

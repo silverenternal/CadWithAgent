@@ -12,8 +12,8 @@
 //! cargo run --example context_injection
 //! ```
 
-use cadagent::prelude::*;
 use cadagent::analysis::{AnalysisPipeline, AnalysisTools};
+use cadagent::prelude::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== 工具增强上下文注入管线示例 ===\n");
@@ -54,7 +54,8 @@ fn example_svg_string() -> Result<(), Box<dyn std::error::Error>> {
     </svg>"#;
 
     // 创建管线
-    let pipeline = AnalysisPipeline::with_defaults().expect("创建管线失败，请设置 PROVIDER_ZAZAZ_API_KEY 环境变量");
+    let pipeline = AnalysisPipeline::with_defaults()
+        .expect("创建管线失败，请设置 PROVIDER_ZAZAZ_API_KEY 环境变量");
 
     // 执行上下文注入
     let task = "请分析这个户型图，识别所有房间并计算面积";
@@ -96,8 +97,18 @@ fn example_svg_string() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n✅ 约束校验:");
     if let Some(ref verification) = result.verification {
-        println!("   - 合法性：{}", if verification.is_valid { "✓ 通过" } else { "✗ 未通过" });
-        println!("   - 总体评分：{:.1}/1.0", verification.overall_score * 10.0);
+        println!(
+            "   - 合法性：{}",
+            if verification.is_valid {
+                "✓ 通过"
+            } else {
+                "✗ 未通过"
+            }
+        );
+        println!(
+            "   - 总体评分：{:.1}/1.0",
+            verification.overall_score * 10.0
+        );
         if !verification.conflicts.is_empty() {
             println!("   - ⚠ 发现 {} 个冲突", verification.conflicts.len());
         }
@@ -107,7 +118,10 @@ fn example_svg_string() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n📝 生成的提示词:");
     println!("   - 提示词长度：{} 字符", result.prompt.full_prompt.len());
-    println!("   - 注入的上下文：{:?}", result.prompt.metadata.injected_context);
+    println!(
+        "   - 注入的上下文：{:?}",
+        result.prompt.metadata.injected_context
+    );
 
     // 显示提示词前 500 字符
     let prompt_preview = if result.prompt.full_prompt.len() > 500 {
@@ -115,7 +129,10 @@ fn example_svg_string() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         &result.prompt.full_prompt
     };
-    println!("\n   预览:\n   {}\n   ...", prompt_preview.replace('\n', "\n   "));
+    println!(
+        "\n   预览:\n   {}\n   ...",
+        prompt_preview.replace('\n', "\n   ")
+    );
 
     println!("\n⏱️  总耗时：{}ms", result.total_latency_ms);
     println!("\n{}\n", "=".repeat(50));
@@ -134,16 +151,15 @@ fn example_from_primitives() -> Result<(), Box<dyn std::error::Error>> {
         Primitive::Line(Line::from_coords([100.0, 0.0], [100.0, 100.0])),
         Primitive::Line(Line::from_coords([100.0, 100.0], [0.0, 100.0])),
         Primitive::Line(Line::from_coords([0.0, 100.0], [0.0, 0.0])),
-
         // 对角线（表示斜撑）
         Primitive::Line(Line::from_coords([0.0, 0.0], [100.0, 100.0])),
-
         // 中心圆
         Primitive::Circle(Circle::from_coords([50.0, 50.0], 10.0)),
     ];
 
     // 创建管线
-    let pipeline = AnalysisPipeline::with_defaults().expect("创建管线失败，请设置 PROVIDER_ZAZAZ_API_KEY 环境变量");
+    let pipeline = AnalysisPipeline::with_defaults()
+        .expect("创建管线失败，请设置 PROVIDER_ZAZAZ_API_KEY 环境变量");
 
     // 执行上下文注入
     let task = "分析这个几何图形的结构特征";
@@ -155,14 +171,25 @@ fn example_from_primitives() -> Result<(), Box<dyn std::error::Error>> {
     // 显示检测到的关系
     for rel in &result.relations {
         match rel {
-            GeometricRelation::Parallel { line1_id, line2_id, .. } => {
+            GeometricRelation::Parallel {
+                line1_id, line2_id, ..
+            } => {
                 println!("   - line_{} ∥ line_{}", line1_id, line2_id);
             }
-            GeometricRelation::Perpendicular { line1_id, line2_id, .. } => {
+            GeometricRelation::Perpendicular {
+                line1_id, line2_id, ..
+            } => {
                 println!("   - line_{} ⊥ line_{}", line1_id, line2_id);
             }
-            GeometricRelation::Connected { primitive1_id, primitive2_id, .. } => {
-                println!("   - primitive_{} 连接到 primitive_{}", primitive1_id, primitive2_id);
+            GeometricRelation::Connected {
+                primitive1_id,
+                primitive2_id,
+                ..
+            } => {
+                println!(
+                    "   - primitive_{} 连接到 primitive_{}",
+                    primitive1_id, primitive2_id
+                );
             }
             _ => {}
         }
@@ -183,17 +210,16 @@ fn example_tool_usage() -> Result<(), Box<dyn std::error::Error>> {
         <line x1="0" y1="0" x2="0" y2="100" />
     </svg>"#;
 
-    let tools = AnalysisTools::default();
+    let tools = AnalysisTools;
 
     // 调用分析工具（使用存在的 tool 方法）
-    let result = tools.analyze_layout(
-        svg.to_string(),
-        "分析这个图形".to_string(),
-        None,
-    );
+    let result = tools.analyze_layout(svg.to_string(), "分析这个图形".to_string(), None);
 
     println!("🔧 工具调用结果:");
-    println!("   - 成功：{}", result["success"].as_bool().unwrap_or(false));
+    println!(
+        "   - 成功：{}",
+        result["success"].as_bool().unwrap_or(false)
+    );
     println!("   - 基元数量：{}", result["primitive_count"]);
 
     // 获取管线信息
@@ -205,10 +231,9 @@ fn example_tool_usage() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(steps) = info["steps"].as_array() {
         println!("\n   处理步骤:");
         for step in steps {
-            println!("   {}. {} - {}",
-                step["id"],
-                step["name"],
-                step["description"]
+            println!(
+                "   {}. {} - {}",
+                step["id"], step["name"], step["description"]
             );
         }
     }
@@ -224,6 +249,11 @@ mod tests {
 
     #[test]
     fn test_full_pipeline() {
+        // 需要 API Key，未设置时跳过
+        if std::env::var("PROVIDER_ZAZAZ_API_KEY").is_err() {
+            return;
+        }
+
         let svg = r#"<svg width="100" height="100">
             <line x1="0" y1="0" x2="100" y2="0" />
             <line x1="0" y1="0" x2="0" y2="100" />
@@ -231,27 +261,38 @@ mod tests {
             <line x1="0" y1="100" x2="100" y2="100" />
         </svg>"#;
 
-        let pipeline = AnalysisPipeline::with_defaults().expect("创建管线失败，请设置 PROVIDER_ZAZAZ_API_KEY 环境变量");
-        let result = pipeline.inject_from_svg_string(svg, "分析这个图形").unwrap();
+        let pipeline = AnalysisPipeline::with_defaults()
+            .expect("创建管线失败，请设置 PROVIDER_ZAZAZ_API_KEY 环境变量");
+        let result = pipeline
+            .inject_from_svg_string(svg, "分析这个图形")
+            .unwrap();
 
         assert!(!result.primitives.is_empty());
-        assert!(result.relations.len() > 0);
+        assert!(!result.relations.is_empty());
         assert!(result.verification.is_some());
         assert!(!result.prompt.full_prompt.is_empty());
     }
 
     #[test]
     fn test_pipeline_without_verification() {
-        let mut config = AnalysisConfig::default();
-        config.skip_verification = true;
+        // 需要 API Key，未设置时跳过
+        if std::env::var("PROVIDER_ZAZAZ_API_KEY").is_err() {
+            return;
+        }
 
-        let pipeline = AnalysisPipeline::new(config).expect("创建管线失败，请设置 PROVIDER_ZAZAZ_API_KEY 环境变量");
+        let config = AnalysisConfig {
+            skip_verification: true,
+            ..Default::default()
+        };
 
-        let primitives = vec![
-            Primitive::Line(Line::from_coords([0.0, 0.0], [1.0, 0.0])),
-        ];
+        let pipeline = AnalysisPipeline::new(config)
+            .expect("创建管线失败，请设置 PROVIDER_ZAZAZ_API_KEY 环境变量");
 
-        let result = pipeline.inject_from_primitives(&primitives, "测试").unwrap();
+        let primitives = vec![Primitive::Line(Line::from_coords([0.0, 0.0], [1.0, 0.0]))];
+
+        let result = pipeline
+            .inject_from_primitives(&primitives, "测试")
+            .unwrap();
 
         assert!(result.verification.is_none());
     }

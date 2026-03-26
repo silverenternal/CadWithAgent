@@ -2,7 +2,7 @@
 //!
 //! 将几何图元导出为 DXF 文件格式
 
-use crate::geometry::{Primitive, Point, Room};
+use crate::geometry::{Point, Primitive, Room};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::Write;
@@ -13,7 +13,10 @@ pub struct DxfExporter;
 
 impl DxfExporter {
     /// 导出图元到 DXF 文件
-    pub fn export(primitives: &[Primitive], output_path: impl AsRef<Path>) -> Result<DxfExportResult, DxfExportError> {
+    pub fn export(
+        primitives: &[Primitive],
+        output_path: impl AsRef<Path>,
+    ) -> Result<DxfExportResult, DxfExportError> {
         let mut dxf = DxfDocument::new();
 
         // 添加图元
@@ -61,7 +64,14 @@ impl DxfExporter {
                 ];
                 for i in 0..4 {
                     let j = (i + 1) % 4;
-                    dxf.add_line(corners[i].x, corners[i].y, 0.0, corners[j].x, corners[j].y, 0.0);
+                    dxf.add_line(
+                        corners[i].x,
+                        corners[i].y,
+                        0.0,
+                        corners[j].x,
+                        corners[j].y,
+                        0.0,
+                    );
                 }
             }
             Primitive::Polyline { points, closed } => {
@@ -78,23 +88,38 @@ impl DxfExporter {
                     }
                 }
             }
-            Primitive::Arc { center, radius, start_angle, end_angle } => {
+            Primitive::Arc {
+                center,
+                radius,
+                start_angle,
+                end_angle,
+            } => {
                 dxf.add_arc(center.x, center.y, 0.0, *radius, *start_angle, *end_angle);
             }
-            Primitive::Text { content, position, height } => {
+            Primitive::Text {
+                content,
+                position,
+                height,
+            } => {
                 dxf.add_text(content, position.x, position.y, *height);
             }
         }
     }
 
     /// 从结构化 JSON 导出 DXF
-    pub fn export_from_json(json_str: &str, output_path: impl AsRef<Path>) -> Result<DxfExportResult, DxfExportError> {
+    pub fn export_from_json(
+        json_str: &str,
+        output_path: impl AsRef<Path>,
+    ) -> Result<DxfExportResult, DxfExportError> {
         let primitives: Vec<Primitive> = serde_json::from_str(json_str)?;
         Self::export(&primitives, output_path)
     }
 
     /// 导出房间数据
-    pub fn export_rooms(rooms: &[Room], output_path: impl AsRef<Path>) -> Result<DxfExportResult, DxfExportError> {
+    pub fn export_rooms(
+        rooms: &[Room],
+        output_path: impl AsRef<Path>,
+    ) -> Result<DxfExportResult, DxfExportError> {
         let mut dxf = DxfDocument::new();
 
         for room in rooms {
@@ -105,17 +130,37 @@ impl DxfExporter {
 
             // 添加门
             for door in &room.doors {
-                dxf.add_text(&format!("DOOR {}", door.width), door.position.x, door.position.y, 100.0);
+                dxf.add_text(
+                    &format!("DOOR {}", door.width),
+                    door.position.x,
+                    door.position.y,
+                    100.0,
+                );
             }
 
             // 添加窗户
             for window in &room.windows {
-                dxf.add_text(&format!("WINDOW {}", window.width), window.position.x, window.position.y, 100.0);
+                dxf.add_text(
+                    &format!("WINDOW {}", window.width),
+                    window.position.x,
+                    window.position.y,
+                    100.0,
+                );
             }
 
             // 添加房间名称和面积
-            dxf.add_text(&room.name, room.boundary.vertices[0].x, room.boundary.vertices[0].y, 150.0);
-            dxf.add_text(&format!("Area: {:.2}", room.area), room.boundary.vertices[0].x, room.boundary.vertices[0].y - 200.0, 100.0);
+            dxf.add_text(
+                &room.name,
+                room.boundary.vertices[0].x,
+                room.boundary.vertices[0].y,
+                150.0,
+            );
+            dxf.add_text(
+                &format!("Area: {:.2}", room.area),
+                room.boundary.vertices[0].x,
+                room.boundary.vertices[0].y - 200.0,
+                100.0,
+            );
         }
 
         dxf.write_to(output_path.as_ref())?;
@@ -179,7 +224,15 @@ impl DxfDocument {
         });
     }
 
-    fn add_arc(&mut self, cx: f64, cy: f64, cz: f64, radius: f64, start_angle: f64, end_angle: f64) {
+    fn add_arc(
+        &mut self,
+        cx: f64,
+        cy: f64,
+        cz: f64,
+        radius: f64,
+        start_angle: f64,
+        end_angle: f64,
+    ) {
         self.entities.push(DxfEntity::Arc {
             center: [cx, cy, cz],
             radius,
@@ -235,7 +288,11 @@ impl DxfDocument {
         Ok(())
     }
 
-    fn write_entity(&self, writer: &mut impl Write, entity: &DxfEntity) -> Result<(), std::io::Error> {
+    fn write_entity(
+        &self,
+        writer: &mut impl Write,
+        entity: &DxfEntity,
+    ) -> Result<(), std::io::Error> {
         match entity {
             DxfEntity::Point { x, y, z } => {
                 writeln!(writer, "0")?;
@@ -275,7 +332,12 @@ impl DxfDocument {
                 writeln!(writer, "40")?;
                 writeln!(writer, "{}", radius)?;
             }
-            DxfEntity::Arc { center, radius, start_angle, end_angle } => {
+            DxfEntity::Arc {
+                center,
+                radius,
+                start_angle,
+                end_angle,
+            } => {
                 writeln!(writer, "0")?;
                 writeln!(writer, "ARC")?;
                 writeln!(writer, "10")?;
@@ -291,7 +353,11 @@ impl DxfDocument {
                 writeln!(writer, "51")?;
                 writeln!(writer, "{}", end_angle)?;
             }
-            DxfEntity::Text { content, position, height } => {
+            DxfEntity::Text {
+                content,
+                position,
+                height,
+            } => {
                 writeln!(writer, "0")?;
                 writeln!(writer, "TEXT")?;
                 writeln!(writer, "1")?;
@@ -312,9 +378,28 @@ impl DxfDocument {
 
 /// DXF 实体
 enum DxfEntity {
-    Point { x: f64, y: f64, z: f64 },
-    Line { start: [f64; 3], end: [f64; 3] },
-    Circle { center: [f64; 3], radius: f64 },
-    Arc { center: [f64; 3], radius: f64, start_angle: f64, end_angle: f64 },
-    Text { content: String, position: [f64; 3], height: f64 },
+    Point {
+        x: f64,
+        y: f64,
+        z: f64,
+    },
+    Line {
+        start: [f64; 3],
+        end: [f64; 3],
+    },
+    Circle {
+        center: [f64; 3],
+        radius: f64,
+    },
+    Arc {
+        center: [f64; 3],
+        radius: f64,
+        start_angle: f64,
+        end_angle: f64,
+    },
+    Text {
+        content: String,
+        position: [f64; 3],
+        height: f64,
+    },
 }

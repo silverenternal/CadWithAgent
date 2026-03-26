@@ -2,9 +2,9 @@
 //!
 //! 定义统一的几何分析管线使用的数据结构
 
-use crate::geometry::primitives::Primitive;
 use crate::cad_reasoning::GeometricRelation;
 use crate::cad_verifier::VerificationResult;
+use crate::geometry::primitives::Primitive;
 use crate::prompt_builder::StructuredPrompt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -133,8 +133,7 @@ impl AnalysisConfig {
         if self.normalize_range[0] >= self.normalize_range[1] {
             return Err(CadAgentError::Config(format!(
                 "归一化范围无效：[{}, {}]。最小值必须小于最大值。建议值：[0.0, 100.0]",
-                self.normalize_range[0],
-                self.normalize_range[1]
+                self.normalize_range[0], self.normalize_range[1]
             )));
         }
 
@@ -191,8 +190,7 @@ impl AnalysisConfig {
         if self.angle_tolerance <= 0.0 || self.angle_tolerance > std::f64::consts::FRAC_PI_2 {
             warnings.push(format!(
                 "角度容差 {} 无效，已修正为默认值 {}",
-                self.angle_tolerance,
-                default.angle_tolerance
+                self.angle_tolerance, default.angle_tolerance
             ));
             self.angle_tolerance = default.angle_tolerance;
         }
@@ -200,8 +198,7 @@ impl AnalysisConfig {
         if self.distance_tolerance < 0.0 {
             warnings.push(format!(
                 "距离容差 {} 无效，已修正为默认值 {}",
-                self.distance_tolerance,
-                default.distance_tolerance
+                self.distance_tolerance, default.distance_tolerance
             ));
             self.distance_tolerance = default.distance_tolerance;
         }
@@ -209,8 +206,7 @@ impl AnalysisConfig {
         if self.min_confidence < 0.0 || self.min_confidence > 1.0 {
             warnings.push(format!(
                 "最小置信度 {} 无效，已修正为默认值 {}",
-                self.min_confidence,
-                default.min_confidence
+                self.min_confidence, default.min_confidence
             ));
             self.min_confidence = default.min_confidence;
         }

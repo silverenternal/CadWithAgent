@@ -117,11 +117,21 @@ pub struct MeasurementSettings {
     pub default_window_height: f64,
 }
 
-fn default_distance_tolerance() -> f64 { 1.0 }
-fn default_angle_tolerance() -> f64 { 1.0 }
-fn default_door_width() -> f64 { 900.0 }
-fn default_window_width() -> f64 { 1200.0 }
-fn default_window_height() -> f64 { 1500.0 }
+fn default_distance_tolerance() -> f64 {
+    1.0
+}
+fn default_angle_tolerance() -> f64 {
+    1.0
+}
+fn default_door_width() -> f64 {
+    900.0
+}
+fn default_window_width() -> f64 {
+    1200.0
+}
+fn default_window_height() -> f64 {
+    1500.0
+}
 
 impl Default for MeasurementSettings {
     fn default() -> Self {
@@ -157,8 +167,12 @@ pub struct DxfExportSettings {
     pub unit: String,
 }
 
-fn default_dxf_precision() -> u32 { 4 }
-fn default_dxf_unit() -> String { "mm".to_string() }
+fn default_dxf_precision() -> u32 {
+    4
+}
+fn default_dxf_unit() -> String {
+    "mm".to_string()
+}
 
 impl Default for DxfExportSettings {
     fn default() -> Self {
@@ -180,8 +194,12 @@ pub struct JsonExportSettings {
     pub include_metadata: bool,
 }
 
-fn default_json_pretty() -> bool { true }
-fn default_json_include_metadata() -> bool { true }
+fn default_json_pretty() -> bool {
+    true
+}
+fn default_json_include_metadata() -> bool {
+    true
+}
 
 /// 模型设置
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -203,10 +221,18 @@ pub struct ModelSettings {
     pub enable_tool_calling: bool,
 }
 
-fn default_model_resolution() -> u32 { 1024 }
-fn default_max_resolution() -> u32 { 2048 }
-fn default_enable_cot() -> bool { true }
-fn default_enable_tool_calling() -> bool { true }
+fn default_model_resolution() -> u32 {
+    1024
+}
+fn default_max_resolution() -> u32 {
+    2048
+}
+fn default_enable_cot() -> bool {
+    true
+}
+fn default_enable_tool_calling() -> bool {
+    true
+}
 
 impl CadConfig {
     /// 从文件加载配置
@@ -229,13 +255,16 @@ impl CadConfig {
     }
 
     /// 加载配置并验证
-    pub fn load_and_validate(path: impl AsRef<Path>) -> Result<(Self, ValidationResult), ConfigError> {
+    pub fn load_and_validate(
+        path: impl AsRef<Path>,
+    ) -> Result<(Self, ValidationResult), ConfigError> {
         let content = fs::read_to_string(path.as_ref())
             .map_err(|e| ConfigError::IoError(format!("读取配置文件失败：{}", e)))?;
 
         // 先验证
         let validator = ConfigValidator::new();
-        let validation_result = validator.validate_json(&content)
+        let validation_result = validator
+            .validate_json(&content)
             .map_err(|e| ConfigError::ValidationError(format!("验证失败：{}", e)))?;
 
         if !validation_result.is_valid {
@@ -330,7 +359,7 @@ mod tests {
 
         let config = result.unwrap();
         let validation = config.validate();
-        
+
         // 验证应该通过
         assert!(validation.is_valid, "验证错误：{:?}", validation.errors);
     }

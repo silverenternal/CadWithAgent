@@ -2,7 +2,7 @@
 //!
 //! 检测户型图中的房间区域
 
-use crate::geometry::{Point, Line, Polygon, Primitive, Room, Door, Window, DoorDirection};
+use crate::geometry::{Door, DoorDirection, Line, Point, Polygon, Primitive, Room, Window};
 use crate::topology::loop_detect::{find_closed_loops, find_outer_boundary};
 
 /// 房间检测结果
@@ -16,7 +16,7 @@ pub struct RoomDetectionResult {
 pub fn detect_rooms(primitives: &[Primitive]) -> RoomDetectionResult {
     // 查找所有闭合回路
     let loops = find_closed_loops(primitives);
-    
+
     // 查找外边界
     let outer_boundary = find_outer_boundary(primitives);
 
@@ -118,11 +118,17 @@ fn detect_windows(loop_primitives: &[Primitive], all_primitives: &[Primitive]) -
 fn detect_door_in_wall(wall: &Line, all_primitives: &[Primitive]) -> Option<Door> {
     // 简化检测：查找墙上的缺口或特殊标记
     // 实际应用中可能需要更复杂的几何分析
-    
+
     // 检查是否有文本标记为"门"或"D"
     for prim in all_primitives {
-        if let Primitive::Text { content, position, .. } = prim {
-            if content.to_lowercase().contains("门") || content.to_lowercase().contains("door") || content.to_lowercase() == "d" {
+        if let Primitive::Text {
+            content, position, ..
+        } = prim
+        {
+            if content.to_lowercase().contains("门")
+                || content.to_lowercase().contains("door")
+                || content.to_lowercase() == "d"
+            {
                 // 检查文本是否在墙附近
                 let dist = wall.midpoint().distance(position);
                 if dist < 500.0 {
@@ -144,11 +150,17 @@ fn detect_door_in_wall(wall: &Line, all_primitives: &[Primitive]) -> Option<Door
 /// 在墙中检测窗户
 fn detect_window_in_wall(wall: &Line, all_primitives: &[Primitive]) -> Option<Window> {
     // 简化检测：查找墙上的特殊标记
-    
+
     // 检查是否有文本标记为"窗"或"W"
     for prim in all_primitives {
-        if let Primitive::Text { content, position, .. } = prim {
-            if content.to_lowercase().contains("窗") || content.to_lowercase().contains("window") || content.to_lowercase() == "w" {
+        if let Primitive::Text {
+            content, position, ..
+        } = prim
+        {
+            if content.to_lowercase().contains("窗")
+                || content.to_lowercase().contains("window")
+                || content.to_lowercase() == "w"
+            {
                 // 检查文本是否在墙附近
                 let dist = wall.midpoint().distance(position);
                 if dist < 500.0 {

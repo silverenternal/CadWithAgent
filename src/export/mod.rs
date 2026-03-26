@@ -6,9 +6,9 @@ pub mod dxf;
 pub mod json;
 
 #[cfg(test)]
-mod json_tests;
-#[cfg(test)]
 mod dxf_tests;
+#[cfg(test)]
+mod json_tests;
 
 pub use dxf::*;
 pub use json::*;

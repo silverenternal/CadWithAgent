@@ -178,7 +178,7 @@ pub struct CircleDimensions {
 }
 
 // 重新导出便捷类型
+pub use CircleDimensions as MeasureCircleResult;
 pub use ParallelResult as MeasureParallelResult;
 pub use PerpendicularResult as MeasurePerpendicularResult;
 pub use RectDimensions as MeasureRectResult;
-pub use CircleDimensions as MeasureCircleResult;

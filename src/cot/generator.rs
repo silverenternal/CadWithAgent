@@ -2,8 +2,8 @@
 //!
 //! 基于几何图元自动生成思维链数据
 
-use crate::geometry::{Primitive, Point, Polygon, Room};
 use crate::cot::templates::{PerceptionTemplate, ReasoningTemplate, SummaryTemplate};
+use crate::geometry::{Point, Polygon, Primitive, Room};
 use serde::{Deserialize, Serialize};
 
 /// Geo-CoT 生成器
@@ -61,18 +61,23 @@ impl GeoCotGenerator {
         }
 
         // 检测门
-        let doors: Vec<_> = primitives.iter()
+        let doors: Vec<_> = primitives
+            .iter()
             .filter_map(|p| match p {
-                Primitive::Text { content, position, .. } if content.contains("门") || content.to_lowercase() == "d" => {
+                Primitive::Text {
+                    content, position, ..
+                } if content.contains("门") || content.to_lowercase() == "d" => {
                     Some((*position, content.clone()))
                 }
                 _ => None,
             })
             .collect();
-        
+
         for (pos, content) in &doors {
-            observations.push(format!("在坐标 [{:.0}, {:.0}] 处检测到文本标记'{}'，可能是门的位置", 
-                pos.x, pos.y, content));
+            observations.push(format!(
+                "在坐标 [{:.0}, {:.0}] 处检测到文本标记'{}'，可能是门的位置",
+                pos.x, pos.y, content
+            ));
         }
 
         observations.join("\n")
@@ -94,7 +99,9 @@ impl GeoCotGenerator {
             for room in &rooms {
                 reasoning_steps.push(format!(
                     "房间'{}'的边界由{}个顶点组成，计算得到面积为{:.2}平方单位",
-                    room.name, room.boundary.vertices.len(), room.area
+                    room.name,
+                    room.boundary.vertices.len(),
+                    room.area
                 ));
             }
         }
@@ -137,20 +144,40 @@ impl GeoCotGenerator {
         if task.contains("面积") {
             let rooms = self.find_rooms(primitives);
             let total_area: f64 = rooms.iter().map(|r| r.area).sum();
-            return format!("总面积为{:.2}平方单位。各房间面积：{}", 
+            return format!(
+                "总面积为{:.2}平方单位。各房间面积：{}",
                 total_area,
-                rooms.iter().map(|r| format!("{}: {:.2}", r.name, r.area)).collect::<Vec<_>>().join(", "));
+                rooms
+                    .iter()
+                    .map(|r| format!("{}: {:.2}", r.name, r.area))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
         }
 
         if task.contains("宽度") {
             if let Some(boundary) = self.find_outer_boundary(primitives) {
-                let bbox = boundary.vertices.iter()
-                    .fold((f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY),
-                        |(min_x, min_y, max_x, max_y), p| {
-                            (min_x.min(p.x), min_y.min(p.y), max_x.max(p.x), max_y.max(p.y))
-                        });
+                let bbox = boundary.vertices.iter().fold(
+                    (
+                        f64::INFINITY,
+                        f64::INFINITY,
+                        f64::NEG_INFINITY,
+                        f64::NEG_INFINITY,
+                    ),
+                    |(min_x, min_y, max_x, max_y), p| {
+                        (
+                            min_x.min(p.x),
+                            min_y.min(p.y),
+                            max_x.max(p.x),
+                            max_y.max(p.y),
+                        )
+                    },
+                );
                 let width = bbox.2 - bbox.0;
-                return format!("建筑总宽度为{:.2}单位（从 x={:.2}到 x={:.2}）。", width, bbox.0, bbox.2);
+                return format!(
+                    "建筑总宽度为{:.2}单位（从 x={:.2}到 x={:.2}）。",
+                    width, bbox.0, bbox.2
+                );
             }
         }
 
@@ -159,7 +186,9 @@ impl GeoCotGenerator {
         format!(
             "检测到{}个房间，外边界由{}个点组成。",
             rooms.len(),
-            self.find_outer_boundary(primitives).map(|p| p.vertices.len()).unwrap_or(0)
+            self.find_outer_boundary(primitives)
+                .map(|p| p.vertices.len())
+                .unwrap_or(0)
         )
     }
 
@@ -180,7 +209,9 @@ impl GeoCotGenerator {
     fn find_outer_boundary(&self, primitives: &[Primitive]) -> Option<Polygon> {
         // 简化实现：查找面积最大的闭合回路
         let loops = self.find_all_loops(primitives);
-        loops.into_iter().max_by(|a, b| a.area().partial_cmp(&b.area()).unwrap())
+        loops
+            .into_iter()
+            .max_by(|a, b| a.area().partial_cmp(&b.area()).unwrap())
     }
 
     fn find_rooms(&self, primitives: &[Primitive]) -> Vec<Room> {
@@ -197,15 +228,17 @@ impl GeoCotGenerator {
             loops.remove(0);
         }
 
-        loops.into_iter().enumerate().map(|(i, boundary)| {
-            Room {
+        loops
+            .into_iter()
+            .enumerate()
+            .map(|(i, boundary)| Room {
                 name: format!("房间{}", i + 1),
                 boundary: boundary.clone(),
                 area: boundary.area(),
                 doors: vec![],
                 windows: vec![],
-            }
-        }).collect()
+            })
+            .collect()
     }
 
     fn find_all_loops(&self, primitives: &[Primitive]) -> Vec<Polygon> {
@@ -249,7 +282,6 @@ struct GeoCotTemplates {
     #[allow(dead_code)]
     summary: SummaryTemplate,
 }
-
 
 /// 使用 tokitai 工具封装
 #[derive(Default, Clone)]

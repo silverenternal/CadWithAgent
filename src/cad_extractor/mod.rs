@@ -22,9 +22,9 @@
 //! println!("提取了 {} 个基元", result.primitives.len());
 //! ```
 
-use crate::geometry::primitives::{Point, Line, Polygon, Circle, Rect, Primitive};
-use crate::parser::svg::{SvgParser, SvgResult};
 use crate::error::{CadAgentError, CadAgentResult, GeometryConfig};
+use crate::geometry::primitives::{Circle, Line, Point, Polygon, Primitive, Rect};
+use crate::parser::svg::{SvgParser, SvgResult};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tokitai::tool;
@@ -199,7 +199,10 @@ impl CadPrimitiveExtractor {
     ///
     /// # Errors
     /// 如果 SVG 解析失败，返回 `CadAgentError::Parse`
-    pub fn extract_from_svg(&self, path: impl AsRef<Path>) -> CadAgentResult<PrimitiveExtractionResult> {
+    pub fn extract_from_svg(
+        &self,
+        path: impl AsRef<Path>,
+    ) -> CadAgentResult<PrimitiveExtractionResult> {
         let svg_result = SvgParser::parse(path)
             .map_err(|e| CadAgentError::Parse(format!("SVG 解析失败：{}", e)))?;
 
@@ -210,7 +213,10 @@ impl CadPrimitiveExtractor {
     ///
     /// # Errors
     /// 如果 SVG 解析失败，返回 `CadAgentError::Parse`
-    pub fn extract_from_svg_string(&self, content: &str) -> CadAgentResult<PrimitiveExtractionResult> {
+    pub fn extract_from_svg_string(
+        &self,
+        content: &str,
+    ) -> CadAgentResult<PrimitiveExtractionResult> {
         let svg_result = SvgParser::parse_string(content)
             .map_err(|e| CadAgentError::Parse(format!("SVG 解析失败：{}", e)))?;
 
@@ -274,7 +280,12 @@ impl CadPrimitiveExtractor {
         }
 
         if min_x.is_finite() && min_y.is_finite() {
-            Some(CoordRange { min_x, min_y, max_x, max_y })
+            Some(CoordRange {
+                min_x,
+                min_y,
+                max_x,
+                max_y,
+            })
         } else {
             None
         }
@@ -294,11 +305,20 @@ impl CadPrimitiveExtractor {
             Some(range) => {
                 let src_width = range.max_x - range.min_x;
                 let src_height = range.max_y - range.min_y;
-                let dst_width = self.config.geometry.normalize_range[1] - self.config.geometry.normalize_range[0];
+                let dst_width = self.config.geometry.normalize_range[1]
+                    - self.config.geometry.normalize_range[0];
                 let dst_height = dst_width;
 
-                let scale_x = if src_width > 0.0 { dst_width / src_width } else { 1.0 };
-                let scale_y = if src_height > 0.0 { dst_height / src_height } else { 1.0 };
+                let scale_x = if src_width > 0.0 {
+                    dst_width / src_width
+                } else {
+                    1.0
+                };
+                let scale_y = if src_height > 0.0 {
+                    dst_height / src_height
+                } else {
+                    1.0
+                };
 
                 TransformParams {
                     scale_x,
@@ -311,8 +331,13 @@ impl CadPrimitiveExtractor {
     }
 
     /// 应用坐标归一化
-    fn apply_normalization(&self, primitives: Vec<Primitive>, transform: &TransformParams) -> Vec<Primitive> {
-        primitives.into_iter()
+    fn apply_normalization(
+        &self,
+        primitives: Vec<Primitive>,
+        transform: &TransformParams,
+    ) -> Vec<Primitive> {
+        primitives
+            .into_iter()
             .map(|p| self.transform_primitive(p, transform))
             .filter(|p| !self.should_filter(p))
             .collect()
@@ -327,7 +352,9 @@ impl CadPrimitiveExtractor {
                 end: self.transform_point(line.end, transform),
             }),
             Primitive::Polygon(poly) => Primitive::Polygon(Polygon {
-                vertices: poly.vertices.into_iter()
+                vertices: poly
+                    .vertices
+                    .into_iter()
                     .map(|p| self.transform_point(p, transform))
                     .collect(),
                 closed: poly.closed,
@@ -343,12 +370,18 @@ impl CadPrimitiveExtractor {
                 Primitive::Rect(Rect { min, max })
             }
             Primitive::Polyline { points, closed } => Primitive::Polyline {
-                points: points.into_iter()
+                points: points
+                    .into_iter()
                     .map(|p| self.transform_point(p, transform))
                     .collect(),
                 closed,
             },
-            Primitive::Arc { center, radius, start_angle, end_angle } => {
+            Primitive::Arc {
+                center,
+                radius,
+                start_angle,
+                end_angle,
+            } => {
                 let center = self.transform_point(center, transform);
                 let new_radius = radius * transform.scale_x.min(transform.scale_y);
                 Primitive::Arc {
@@ -358,7 +391,11 @@ impl CadPrimitiveExtractor {
                     end_angle,
                 }
             }
-            Primitive::Text { content, position, height } => Primitive::Text {
+            Primitive::Text {
+                content,
+                position,
+                height,
+            } => Primitive::Text {
                 position: self.transform_point(position, transform),
                 height: height * transform.scale_y,
                 content,
@@ -376,7 +413,8 @@ impl CadPrimitiveExtractor {
 
     /// 过滤基元
     fn filter_primitives(&self, primitives: Vec<Primitive>) -> Vec<Primitive> {
-        primitives.into_iter()
+        primitives
+            .into_iter()
             .filter(|p| !self.should_filter(p))
             .collect()
     }
@@ -551,7 +589,7 @@ impl CadExtractorTools {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::geometry::primitives::{Point, Line, Circle};
+    use crate::geometry::primitives::{Circle, Line, Point};
 
     #[test]
     fn test_extractor_creation() {
@@ -594,20 +632,16 @@ mod tests {
 
     #[test]
     fn test_extract_primitives_tool() {
-        let tools = CadExtractorTools::default();
-        
+        let tools = CadExtractorTools;
+
         let svg = r#"<svg width="100" height="100">
             <line x1="0" y1="0" x2="10" y2="10" />
             <circle cx="50" cy="50" r="10" />
         </svg>"#;
 
-        let result = tools.extract_primitives(
-            svg.to_string(),
-            Some(true),
-            Some(vec![0.0, 100.0]),
-        );
+        let result = tools.extract_primitives(svg.to_string(), Some(true), Some(vec![0.0, 100.0]));
 
         assert!(result["success"].as_bool().unwrap_or(false));
-        assert!(result["primitives"].as_array().unwrap().len() > 0);
+        assert!(!result["primitives"].as_array().unwrap().is_empty());
     }
 }

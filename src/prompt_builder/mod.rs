@@ -73,9 +73,9 @@
 //! // 将 prompt 送入 VLM 模型
 //! ```
 
-use crate::geometry::primitives::Primitive;
 use crate::cad_reasoning::GeometricRelation;
 use crate::cad_verifier::VerificationResult;
+use crate::geometry::primitives::Primitive;
 use serde::{Deserialize, Serialize};
 use tokitai::tool;
 
@@ -134,7 +134,7 @@ impl Default for PromptConfig {
             max_primitives_display: 50,
             language: "zh-CN".to_string(),
             enable_summary_mode: true,
-            summary_mode_threshold: 100,  // 超过 100 个基元时启用摘要模式
+            summary_mode_threshold: 100, // 超过 100 个基元时启用摘要模式
         }
     }
 }
@@ -227,13 +227,13 @@ impl PromptBuilder {
 
         // 6. 组装用户提示
         let mut user_prompt_parts = Vec::new();
-        
+
         user_prompt_parts.push("### 任务\n请分析这个 CAD 图纸的几何结构。".to_string());
         user_prompt_parts.push("".to_string());
-        
+
         user_prompt_parts.push("### 几何上下文".to_string());
         user_prompt_parts.extend(context_parts);
-        
+
         if !reasoning_guidance.is_empty() {
             user_prompt_parts.push("".to_string());
             user_prompt_parts.push("### 推理引导".to_string());
@@ -243,11 +243,7 @@ impl PromptBuilder {
         let user_prompt = user_prompt_parts.join("\n");
 
         // 7. 完整提示
-        let full_prompt = format!(
-            "{}\n\n{}",
-            system_prompt,
-            user_prompt
-        );
+        let full_prompt = format!("{}\n\n{}", system_prompt, user_prompt);
         let prompt_length = full_prompt.len();
 
         StructuredPrompt {
@@ -305,13 +301,13 @@ impl PromptBuilder {
         };
 
         let mut user_prompt_parts = Vec::new();
-        
+
         user_prompt_parts.push(format!("### 任务\n{}", task));
         user_prompt_parts.push("".to_string());
-        
+
         user_prompt_parts.push("### 几何上下文".to_string());
         user_prompt_parts.extend(context_parts);
-        
+
         if !reasoning_guidance.is_empty() {
             user_prompt_parts.push("".to_string());
             user_prompt_parts.push("### 推理引导".to_string());
@@ -320,11 +316,7 @@ impl PromptBuilder {
 
         let user_prompt = user_prompt_parts.join("\n");
 
-        let full_prompt = format!(
-            "{}\n\n{}",
-            system_prompt,
-            user_prompt
-        );
+        let full_prompt = format!("{}\n\n{}", system_prompt, user_prompt);
         let prompt_length = full_prompt.len();
 
         StructuredPrompt {
@@ -345,10 +337,10 @@ impl PromptBuilder {
     fn build_primitive_context(&self, primitives: &[Primitive]) -> String {
         let mut context = String::new();
         let total_count = primitives.len();
-        
+
         // 检查是否启用摘要模式
-        let is_summary_mode = self.config.enable_summary_mode 
-            && total_count > self.config.summary_mode_threshold;
+        let is_summary_mode =
+            self.config.enable_summary_mode && total_count > self.config.summary_mode_threshold;
 
         // 统计信息
         let mut line_count = 0;
@@ -372,21 +364,12 @@ impl PromptBuilder {
             }
         }
 
-        context.push_str(&format!(
-            "- **基元统计**: 共 {} 个基元\n",
-            total_count
-        ));
-        
+        context.push_str(&format!("- **基元统计**: 共 {} 个基元\n", total_count));
+
         // 摘要模式：只输出统计，不输出样本
         if is_summary_mode {
-            context.push_str(&format!(
-                "  - 线段：{} 条\n",
-                line_count
-            ));
-            context.push_str(&format!(
-                "  - 圆：{} 个\n",
-                circle_count
-            ));
+            context.push_str(&format!("  - 线段：{} 条\n", line_count));
+            context.push_str(&format!("  - 圆：{} 个\n", circle_count));
             if polygon_count > 0 {
                 context.push_str(&format!(
                     "  - 多边形：{} 个（可能表示房间或封闭区域）\n",
@@ -411,21 +394,15 @@ impl PromptBuilder {
             context.push_str("\n> 📊 注：基元数量较多，已启用摘要模式以节省 Token。仅显示统计信息，未展示样本详情。");
             return context;
         }
-        
+
         // 正常模式：输出统计 + 样本
-        context.push_str(&format!(
-            "  - 线段：{} 条",
-            line_count
-        ));
+        context.push_str(&format!("  - 线段：{} 条", line_count));
         if line_count > 0 {
             context.push_str(self.format_line_samples(primitives).as_str());
         }
         context.push('\n');
 
-        context.push_str(&format!(
-            "  - 圆：{} 个",
-            circle_count
-        ));
+        context.push_str(&format!("  - 圆：{} 个", circle_count));
         if circle_count > 0 {
             context.push_str(self.format_circle_samples(primitives).as_str());
         }
@@ -472,7 +449,9 @@ impl PromptBuilder {
         }
 
         // 详细基元列表（如果启用且数量不多）
-        if self.config.include_primitive_details && primitives.len() <= self.config.max_primitives_display {
+        if self.config.include_primitive_details
+            && primitives.len() <= self.config.max_primitives_display
+        {
             context.push_str("\n\n- **详细基元列表**:\n");
             for (id, prim) in primitives.iter().take(20).enumerate() {
                 context.push_str(&format!("  - [{}] {}\n", id, self.format_primitive(prim)));
@@ -516,18 +495,12 @@ impl PromptBuilder {
         ));
 
         if parallel_count > 0 {
-            context.push_str(&format!(
-                "  - 平行关系：{} 对\n",
-                parallel_count
-            ));
+            context.push_str(&format!("  - 平行关系：{} 对\n", parallel_count));
             context.push_str(&self.format_parallel_samples(relations));
         }
 
         if perpendicular_count > 0 {
-            context.push_str(&format!(
-                "  - 垂直关系：{} 对\n",
-                perpendicular_count
-            ));
+            context.push_str(&format!("  - 垂直关系：{} 对\n", perpendicular_count));
             context.push_str(&self.format_perpendicular_samples(relations));
         }
 
@@ -559,7 +532,11 @@ impl PromptBuilder {
 
         context.push_str(&format!(
             "- **合法性校验**: {}\n",
-            if verification.is_valid { "✓ 通过" } else { "✗ 未通过" }
+            if verification.is_valid {
+                "✓ 通过"
+            } else {
+                "✗ 未通过"
+            }
         ));
 
         if !verification.conflicts.is_empty() {
@@ -606,7 +583,8 @@ impl PromptBuilder {
                  请基于这些结构化信息进行推理分析。你的推理应该：\n\
                  1. 基于给定的几何事实，不臆测\n\
                  2. 逻辑清晰，分步骤推理\n\
-                 3. 输出可解释、可验证的结论".to_string()
+                 3. 输出可解释、可验证的结论"
+                    .to_string()
             }
             PromptTemplate::Reasoning => {
                 "你是一个 CAD 几何推理专家。你将收到精确的几何数据和约束关系，\
@@ -614,11 +592,10 @@ impl PromptBuilder {
                  1. 所有几何数据已经过算法验证，是可靠的事实\n\
                  2. 请基于这些事实进行逻辑推理\n\
                  3. 推理过程应该分步骤、可解释\n\
-                 4. 如有不确定性，请明确指出".to_string()
+                 4. 如有不确定性，请明确指出"
+                    .to_string()
             }
-            _ => {
-                "你是一个 CAD 几何推理助手，请基于给定的几何信息进行分析。".to_string()
-            }
+            _ => "你是一个 CAD 几何推理助手，请基于给定的几何信息进行分析。".to_string(),
         }
     }
 
@@ -630,18 +607,20 @@ impl PromptBuilder {
         relations: &[GeometricRelation],
     ) -> String {
         match template {
-            PromptTemplate::Analysis => {
-                "建议按以下步骤分析：\n\
+            PromptTemplate::Analysis => "建议按以下步骤分析：\n\
                  1. 观察基元类型和数量分布\n\
                  2. 分析几何约束关系（平行、垂直等）\n\
                  3. 识别可能的功能区域（如房间、墙体等）\n\
                  4. 总结几何结构特征"
-                    .to_string()
-            }
+                .to_string(),
             PromptTemplate::Reasoning => {
                 // 根据基元和约束动态生成引导
-                let has_polygons = primitives.iter().any(|p| matches!(p, Primitive::Polygon(_)));
-                let has_perpendicular = relations.iter().any(|r| matches!(r, GeometricRelation::Perpendicular { .. }));
+                let has_polygons = primitives
+                    .iter()
+                    .any(|p| matches!(p, Primitive::Polygon(_)));
+                let has_perpendicular = relations
+                    .iter()
+                    .any(|r| matches!(r, GeometricRelation::Perpendicular { .. }));
 
                 let mut guidance = Vec::new();
 
@@ -666,7 +645,11 @@ impl PromptBuilder {
             Primitive::Point(p) => format!("点 ({:.2}, {:.2})", p.x, p.y),
             Primitive::Line(line) => format!(
                 "线段 [{:.2}, {:.2}] → [{:.2}, {:.2}] (长度={:.2})",
-                line.start.x, line.start.y, line.end.x, line.end.y, line.length()
+                line.start.x,
+                line.start.y,
+                line.end.x,
+                line.end.y,
+                line.length()
             ),
             Primitive::Circle(circle) => format!(
                 "圆 中心=({:.2}, {:.2}), 半径={:.2}",
@@ -686,11 +669,22 @@ impl PromptBuilder {
                 points.len(),
                 if *closed { "闭合" } else { "开放" }
             ),
-            Primitive::Arc { center, radius, start_angle, end_angle } => format!(
+            Primitive::Arc {
+                center,
+                radius,
+                start_angle,
+                end_angle,
+            } => format!(
                 "弧 中心=({:.2}, {:.2}), 半径={:.2}, 角度=[{:.1}°, {:.1}°]",
-                center.x, center.y, radius, start_angle.to_degrees(), end_angle.to_degrees()
+                center.x,
+                center.y,
+                radius,
+                start_angle.to_degrees(),
+                end_angle.to_degrees()
             ),
-            Primitive::Text { content, position, .. } => format!(
+            Primitive::Text {
+                content, position, ..
+            } => format!(
                 "文本 \"{}\" @ ({:.2}, {:.2})",
                 content, position.x, position.y
             ),
@@ -699,7 +693,8 @@ impl PromptBuilder {
 
     /// 格式化线段样本
     fn format_line_samples(&self, primitives: &[Primitive]) -> String {
-        let lines: Vec<_> = primitives.iter()
+        let lines: Vec<_> = primitives
+            .iter()
             .filter_map(|p| {
                 if let Primitive::Line(line) = p {
                     Some(line)
@@ -714,11 +709,14 @@ impl PromptBuilder {
             return String::new();
         }
 
-        let samples = lines.iter()
-            .map(|l| format!(
-                "[{:.1},{:.1}]→[{:.1},{:.1}]",
-                l.start.x, l.start.y, l.end.x, l.end.y
-            ))
+        let samples = lines
+            .iter()
+            .map(|l| {
+                format!(
+                    "[{:.1},{:.1}]→[{:.1},{:.1}]",
+                    l.start.x, l.start.y, l.end.x, l.end.y
+                )
+            })
             .collect::<Vec<_>>()
             .join(", ");
 
@@ -727,7 +725,8 @@ impl PromptBuilder {
 
     /// 格式化圆样本
     fn format_circle_samples(&self, primitives: &[Primitive]) -> String {
-        let circles: Vec<_> = primitives.iter()
+        let circles: Vec<_> = primitives
+            .iter()
             .filter_map(|p| {
                 if let Primitive::Circle(circle) = p {
                     Some(circle)
@@ -742,8 +741,14 @@ impl PromptBuilder {
             return String::new();
         }
 
-        let samples = circles.iter()
-            .map(|c| format!("中心=({:.1},{:.1}),r={:.1}", c.center.x, c.center.y, c.radius))
+        let samples = circles
+            .iter()
+            .map(|c| {
+                format!(
+                    "中心=({:.1},{:.1}),r={:.1}",
+                    c.center.x, c.center.y, c.radius
+                )
+            })
             .collect::<Vec<_>>()
             .join(", ");
 
@@ -752,7 +757,8 @@ impl PromptBuilder {
 
     /// 格式化多边形样本
     fn format_polygon_samples(&self, primitives: &[Primitive]) -> String {
-        let polygons: Vec<_> = primitives.iter()
+        let polygons: Vec<_> = primitives
+            .iter()
             .filter_map(|p| {
                 if let Primitive::Polygon(poly) = p {
                     Some(poly)
@@ -767,7 +773,8 @@ impl PromptBuilder {
             return String::new();
         }
 
-        let samples = polygons.iter()
+        let samples = polygons
+            .iter()
             .map(|p| format!("{}顶点，面积={:.1}", p.vertices.len(), p.area()))
             .collect::<Vec<_>>()
             .join(", ");
@@ -777,7 +784,8 @@ impl PromptBuilder {
 
     /// 格式化文本样本
     fn format_text_samples(&self, primitives: &[Primitive]) -> String {
-        let texts: Vec<_> = primitives.iter()
+        let texts: Vec<_> = primitives
+            .iter()
             .filter_map(|p| {
                 if let Primitive::Text { content, .. } = p {
                     Some(content.as_str())
@@ -797,9 +805,13 @@ impl PromptBuilder {
 
     /// 格式化平行关系样本
     fn format_parallel_samples(&self, relations: &[GeometricRelation]) -> String {
-        let samples: Vec<_> = relations.iter()
+        let samples: Vec<_> = relations
+            .iter()
             .filter_map(|r| {
-                if let GeometricRelation::Parallel { line1_id, line2_id, .. } = r {
+                if let GeometricRelation::Parallel {
+                    line1_id, line2_id, ..
+                } = r
+                {
                     Some(format!("line_{} ∥ line_{}", line1_id, line2_id))
                 } else {
                     None
@@ -817,9 +829,13 @@ impl PromptBuilder {
 
     /// 格式化垂直关系样本
     fn format_perpendicular_samples(&self, relations: &[GeometricRelation]) -> String {
-        let samples: Vec<_> = relations.iter()
+        let samples: Vec<_> = relations
+            .iter()
             .filter_map(|r| {
-                if let GeometricRelation::Perpendicular { line1_id, line2_id, .. } = r {
+                if let GeometricRelation::Perpendicular {
+                    line1_id, line2_id, ..
+                } = r
+                {
                     Some(format!("line_{} ⊥ line_{}", line1_id, line2_id))
                 } else {
                     None
@@ -905,8 +921,8 @@ impl PromptBuilderTools {
             }
         };
 
-        let verification: Option<VerificationResult> = verification_json
-            .and_then(|s| serde_json::from_str(&s).ok());
+        let verification: Option<VerificationResult> =
+            verification_json.and_then(|s| serde_json::from_str(&s).ok());
 
         let config: PromptConfig = config_json
             .and_then(|s| serde_json::from_str(&s).ok())
@@ -952,15 +968,16 @@ impl PromptBuilderTools {
             }
         };
 
-        let verification: Option<VerificationResult> = verification_json
-            .and_then(|s| serde_json::from_str(&s).ok());
+        let verification: Option<VerificationResult> =
+            verification_json.and_then(|s| serde_json::from_str(&s).ok());
 
         let config: PromptConfig = config_json
             .and_then(|s| serde_json::from_str(&s).ok())
             .unwrap_or_default();
 
         let builder = PromptBuilder::new(config);
-        let prompt = builder.build_reasoning_prompt(&primitives, &relations, verification.as_ref(), &task);
+        let prompt =
+            builder.build_reasoning_prompt(&primitives, &relations, verification.as_ref(), &task);
 
         serde_json::json!({
             "success": true,
@@ -995,7 +1012,7 @@ impl PromptBuilderTools {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::geometry::primitives::{Point, Line, Circle, Polygon};
+    use crate::geometry::primitives::{Circle, Line, Point, Polygon};
 
     #[test]
     fn test_build_analysis_prompt() {
@@ -1005,14 +1022,12 @@ mod tests {
             Primitive::Circle(Circle::from_coords([0.5, 0.5], 0.1)),
         ];
 
-        let relations = vec![
-            GeometricRelation::Perpendicular {
-                line1_id: 0,
-                line2_id: 1,
-                angle_diff: 0.0,
-                confidence: 1.0,
-            },
-        ];
+        let relations = vec![GeometricRelation::Perpendicular {
+            line1_id: 0,
+            line2_id: 1,
+            angle_diff: 0.0,
+            confidence: 1.0,
+        }];
 
         let builder = PromptBuilder::with_defaults();
         let prompt = builder.build_analysis_prompt(&primitives, &relations, None);
@@ -1025,21 +1040,18 @@ mod tests {
 
     #[test]
     fn test_build_reasoning_prompt() {
-        let primitives = vec![
-            Primitive::Polygon(Polygon::from_coords(vec![
-                [0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0],
-            ])),
-        ];
+        let primitives = vec![Primitive::Polygon(Polygon::from_coords(vec![
+            [0.0, 0.0],
+            [1.0, 0.0],
+            [1.0, 1.0],
+            [0.0, 1.0],
+        ]))];
 
         let relations = vec![];
 
         let builder = PromptBuilder::with_defaults();
-        let prompt = builder.build_reasoning_prompt(
-            &primitives,
-            &relations,
-            None,
-            "计算这个房间的面积",
-        );
+        let prompt =
+            builder.build_reasoning_prompt(&primitives, &relations, None, "计算这个房间的面积");
 
         assert!(prompt.full_prompt.contains("计算这个房间的面积"));
         assert!(prompt.metadata.template == PromptTemplate::Reasoning);
@@ -1050,7 +1062,7 @@ mod tests {
         let primitives = vec![Primitive::Point(Point::origin())];
         let relations: Vec<GeometricRelation> = vec![];
 
-        let tools = PromptBuilderTools::default();
+        let tools = PromptBuilderTools;
         let result = tools.build_analysis_prompt(
             serde_json::to_string(&primitives).unwrap(),
             serde_json::to_string(&relations).unwrap(),

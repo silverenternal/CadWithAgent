@@ -8,7 +8,7 @@
 //! - `cad_verify_design` - 校验设计约束合法性
 //! - `cad_generate_cot` - 生成几何思维链数据
 
-use crate::analysis::{AnalysisPipeline, AnalysisConfig, AnalysisResult};
+use crate::analysis::{AnalysisConfig, AnalysisPipeline, AnalysisResult};
 use crate::bridge::vlm_client::VlmConfig;
 use serde::{Deserialize, Serialize};
 use tokitai::tool;
@@ -91,7 +91,8 @@ impl AnalysisTools {
         let base_url = std::env::var("PROVIDER_ZAZAZ_API_URL")
             .unwrap_or_else(|_| "https://zazaz.top/v1".to_string());
         let api_key = std::env::var("PROVIDER_ZAZAZ_API_KEY").unwrap_or_default();
-        let model = std::env::var("PROVIDER_ZAZAZ_MODEL").unwrap_or_else(|_| "./Qwen3.5-27B-FP8".to_string());
+        let model = std::env::var("PROVIDER_ZAZAZ_MODEL")
+            .unwrap_or_else(|_| "./Qwen3.5-27B-FP8".to_string());
 
         let vlm_config = VlmConfig::new(base_url, api_key, model);
 
@@ -129,17 +130,20 @@ impl AnalysisTools {
         constraints_json: serde_json::Value,
     ) -> serde_json::Value {
         // 解析约束
-        let constraints: Vec<crate::cad_reasoning::GeometricRelation> = match serde_json::from_value(constraints_json) {
-            Ok(c) => c,
-            Err(e) => return serde_json::json!({
-                "success": false,
-                "error": format!("解析约束失败：{}", e)
-            }),
-        };
+        let constraints: Vec<crate::cad_reasoning::GeometricRelation> =
+            match serde_json::from_value(constraints_json) {
+                Ok(c) => c,
+                Err(e) => {
+                    return serde_json::json!({
+                        "success": false,
+                        "error": format!("解析约束失败：{}", e)
+                    })
+                }
+            };
 
         // 提取基元
         let extractor = crate::cad_extractor::CadPrimitiveExtractor::new(
-            crate::cad_extractor::ExtractorConfig::default()
+            crate::cad_extractor::ExtractorConfig::default(),
         );
 
         let primitives_result = if std::path::Path::new(&svg_content).exists() {
@@ -150,15 +154,17 @@ impl AnalysisTools {
 
         let primitives = match primitives_result {
             Ok(r) => r.primitives,
-            Err(e) => return serde_json::json!({
-                "success": false,
-                "error": format!("提取基元失败：{}", e)
-            }),
+            Err(e) => {
+                return serde_json::json!({
+                    "success": false,
+                    "error": format!("提取基元失败：{}", e)
+                })
+            }
         };
 
         // 校验约束
         let verifier = crate::cad_verifier::ConstraintVerifier::new(
-            crate::cad_verifier::VerifierConfig::default()
+            crate::cad_verifier::VerifierConfig::default(),
         );
 
         match verifier.verify(&primitives, &constraints) {
@@ -227,14 +233,10 @@ impl AnalysisTools {
     ///
     /// Geo-CoT 数据，包含感知、推理、总结文本
     #[tool(name = "cad_generate_cot")]
-    pub fn generate_cot(
-        &self,
-        svg_content: String,
-        task: String,
-    ) -> serde_json::Value {
+    pub fn generate_cot(&self, svg_content: String, task: String) -> serde_json::Value {
         // 提取基元
         let extractor = crate::cad_extractor::CadPrimitiveExtractor::new(
-            crate::cad_extractor::ExtractorConfig::default()
+            crate::cad_extractor::ExtractorConfig::default(),
         );
 
         let primitives_result = if std::path::Path::new(&svg_content).exists() {
@@ -245,10 +247,12 @@ impl AnalysisTools {
 
         let primitives = match primitives_result {
             Ok(r) => r.primitives,
-            Err(e) => return serde_json::json!({
-                "success": false,
-                "error": format!("提取基元失败：{}", e)
-            }),
+            Err(e) => {
+                return serde_json::json!({
+                    "success": false,
+                    "error": format!("提取基元失败：{}", e)
+                })
+            }
         };
 
         // 推理关系
@@ -335,7 +339,7 @@ mod tests {
 
     #[test]
     fn test_get_analysis_info() {
-        let tools = AnalysisTools::default();
+        let tools = AnalysisTools;
         let info = tools.get_analysis_info();
 
         assert_eq!(info["name"], "cad_analysis_pipeline");

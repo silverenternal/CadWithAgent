@@ -2,10 +2,10 @@
 //!
 //! 处理模型输入输出的序列化
 
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use crate::geometry::Primitive;
 use crate::tools::{ToolCallRequest, ToolCallResponse};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 /// 模型调用请求
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -144,10 +144,7 @@ pub fn parse_tool_calls(tool_calls: &[ToolCall]) -> Vec<ToolCallRequest> {
 }
 
 /// 创建工具调用响应消息
-pub fn create_tool_response(
-    tool_results: &[ToolCallResponse],
-    tool_names: &[&str],
-) -> Message {
+pub fn create_tool_response(tool_results: &[ToolCallResponse], tool_names: &[&str]) -> Message {
     let content = tool_results
         .iter()
         .zip(tool_names.iter())
@@ -226,10 +223,7 @@ pub fn create_text_user_message(text: &str) -> Message {
 }
 
 /// 创建助手消息
-pub fn create_assistant_message(
-    content: Option<String>,
-    _tool_calls: Vec<ToolCall>,
-) -> Message {
+pub fn create_assistant_message(content: Option<String>, _tool_calls: Vec<ToolCall>) -> Message {
     Message {
         role: "assistant".to_string(),
         content: MessageContent::Text(content.unwrap_or_default()),
@@ -239,11 +233,11 @@ pub fn create_assistant_message(
 /// 将图元列表转换为 JSON schema 描述
 pub fn primitives_to_schema(primitives: &[Primitive]) -> Value {
     let mut items = Vec::new();
-    
+
     for prim in primitives {
         items.push(primitive_to_schema(prim));
     }
-    
+
     Value::Array(items)
 }
 
@@ -283,6 +277,6 @@ fn primitive_to_schema(prim: &Primitive) -> Value {
                 "area": rect.area(),
             })
         }
-        _ => serde_json::json!({"type": "unknown"})
+        _ => serde_json::json!({"type": "unknown"}),
     }
 }

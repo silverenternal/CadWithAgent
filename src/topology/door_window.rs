@@ -2,7 +2,7 @@
 //!
 //! 检测墙体中的门和窗户
 
-use crate::geometry::{Point, Line, Primitive, Door, Window, DoorDirection};
+use crate::geometry::{Door, DoorDirection, Line, Point, Primitive, Window};
 
 /// 检测墙中的门
 pub fn detect_doors_in_wall(wall: &Line, primitives: &[Primitive]) -> Vec<Door> {
@@ -10,9 +10,15 @@ pub fn detect_doors_in_wall(wall: &Line, primitives: &[Primitive]) -> Vec<Door> 
 
     // 方法 1: 查找文本标记
     for prim in primitives {
-        if let Primitive::Text { content, position, .. } = prim {
+        if let Primitive::Text {
+            content, position, ..
+        } = prim
+        {
             let content_lower = content.to_lowercase();
-            if content_lower.contains("门") || content_lower.contains("door") || content_lower == "d" {
+            if content_lower.contains("门")
+                || content_lower.contains("door")
+                || content_lower == "d"
+            {
                 // 检查是否在墙附近
                 let dist = distance_point_to_line(position, wall);
                 if dist < 100.0 {
@@ -40,9 +46,15 @@ pub fn detect_windows_in_wall(wall: &Line, primitives: &[Primitive]) -> Vec<Wind
 
     // 方法 1: 查找文本标记
     for prim in primitives {
-        if let Primitive::Text { content, position, .. } = prim {
+        if let Primitive::Text {
+            content, position, ..
+        } = prim
+        {
             let content_lower = content.to_lowercase();
-            if content_lower.contains("窗") || content_lower.contains("window") || content_lower == "w" {
+            if content_lower.contains("窗")
+                || content_lower.contains("window")
+                || content_lower == "w"
+            {
                 // 检查是否在墙附近
                 let dist = distance_point_to_line(position, wall);
                 if dist < 100.0 {
@@ -85,7 +97,7 @@ fn detect_door_gap(wall: &Line, primitives: &[Primitive]) -> Option<Door> {
 
     // 检查是否有缺口
     let gap = find_gap_in_wall(wall, &parallel_lines);
-    
+
     if let Some((gap_center, gap_width)) = gap {
         // 标准门宽约 800-1000mm
         if gap_width > 700.0 && gap_width < 1200.0 {
@@ -109,9 +121,7 @@ fn detect_window_lines(wall: &Line, primitives: &[Primitive]) -> Option<Window> 
             Primitive::Line(line) => Some(line),
             _ => None,
         })
-        .filter(|line| {
-            is_parallel(wall, line, 5.0)
-        })
+        .filter(|line| is_parallel(wall, line, 5.0))
         .collect();
 
     if parallel_lines.len() < 2 {
@@ -126,10 +136,7 @@ fn detect_window_lines(wall: &Line, primitives: &[Primitive]) -> Option<Window> 
             if dist > 150.0 && dist < 400.0 {
                 let mid1 = parallel_lines[i].midpoint();
                 let mid2 = parallel_lines[j].midpoint();
-                let center = Point::new(
-                    (mid1.x + mid2.x) / 2.0,
-                    (mid1.y + mid2.y) / 2.0,
-                );
+                let center = Point::new((mid1.x + mid2.x) / 2.0, (mid1.y + mid2.y) / 2.0);
                 return Some(Window {
                     position: center,
                     width: parallel_lines[i].length(),
@@ -181,7 +188,7 @@ fn find_gap_in_wall(wall: &Line, parallel_lines: &[&Line]) -> Option<(Point, f64
             // 计算线段在墙上的投影区间
             let t1 = project_point_on_line(&line.start, wall);
             let t2 = project_point_on_line(&line.end, wall);
-            
+
             if t1.is_finite() && t2.is_finite() {
                 Some((t1.min(t2), t1.max(t2)))
             } else {
@@ -201,17 +208,17 @@ fn find_gap_in_wall(wall: &Line, parallel_lines: &[&Line]) -> Option<(Point, f64
     for i in 0..projections.len() - 1 {
         let gap_start = projections[i].1;
         let gap_end = projections[i + 1].0;
-        
+
         if gap_end - gap_start > 50.0 {
             // 找到缺口
             let gap_center_t = (gap_start + gap_end) / 2.0;
             let gap_width = gap_end - gap_start;
-            
+
             let gap_center = Point::new(
                 wall.start.x + gap_center_t * (wall.end.x - wall.start.x),
                 wall.start.y + gap_center_t * (wall.end.y - wall.start.y),
             );
-            
+
             return Some((gap_center, gap_width));
         }
     }
@@ -253,28 +260,48 @@ use tokitai::tool;
 impl DoorWindowDetector {
     /// 检测门
     #[tool]
-    pub fn detect_doors(&self, wall_start: [f64; 2], wall_end: [f64; 2], primitives: Vec<Primitive>) -> Vec<Door> {
+    pub fn detect_doors(
+        &self,
+        wall_start: [f64; 2],
+        wall_end: [f64; 2],
+        primitives: Vec<Primitive>,
+    ) -> Vec<Door> {
         let wall = Line::from_coords(wall_start, wall_end);
         detect_doors_in_wall(&wall, &primitives)
     }
 
     /// 检测窗户
     #[tool]
-    pub fn detect_windows(&self, wall_start: [f64; 2], wall_end: [f64; 2], primitives: Vec<Primitive>) -> Vec<Window> {
+    pub fn detect_windows(
+        &self,
+        wall_start: [f64; 2],
+        wall_end: [f64; 2],
+        primitives: Vec<Primitive>,
+    ) -> Vec<Window> {
         let wall = Line::from_coords(wall_start, wall_end);
         detect_windows_in_wall(&wall, &primitives)
     }
 
     /// 检查墙是否有门
     #[tool]
-    pub fn has_door(&self, wall_start: [f64; 2], wall_end: [f64; 2], primitives: Vec<Primitive>) -> bool {
+    pub fn has_door(
+        &self,
+        wall_start: [f64; 2],
+        wall_end: [f64; 2],
+        primitives: Vec<Primitive>,
+    ) -> bool {
         let wall = Line::from_coords(wall_start, wall_end);
         !detect_doors_in_wall(&wall, &primitives).is_empty()
     }
 
     /// 检查墙是否有窗
     #[tool]
-    pub fn has_window(&self, wall_start: [f64; 2], wall_end: [f64; 2], primitives: Vec<Primitive>) -> bool {
+    pub fn has_window(
+        &self,
+        wall_start: [f64; 2],
+        wall_end: [f64; 2],
+        primitives: Vec<Primitive>,
+    ) -> bool {
         let wall = Line::from_coords(wall_start, wall_end);
         !detect_windows_in_wall(&wall, &primitives).is_empty()
     }

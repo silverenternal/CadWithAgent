@@ -13,9 +13,9 @@
 //! cargo run --example vlm_inference
 //! ```
 
-use cadagent::prelude::*;
 use cadagent::analysis::AnalysisPipeline;
 use cadagent::bridge::vlm_client::VlmConfig;
+use cadagent::prelude::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== 真实 VLM 推理示例 ===\n");
@@ -47,7 +47,8 @@ fn example_simple_rectangle_with_vlm() -> Result<(), Box<dyn std::error::Error>>
     </svg>"#;
 
     // 创建管线（使用默认 ZazaZ 配置）
-    let pipeline = AnalysisPipeline::with_defaults().expect("创建管线失败，请设置 PROVIDER_ZAZAZ_API_KEY 环境变量");
+    let pipeline = AnalysisPipeline::with_defaults()
+        .expect("创建管线失败，请设置 PROVIDER_ZAZAZ_API_KEY 环境变量");
 
     let task = "请分析这个户型图：1. 识别有几个房间 2. 描述房间布局 3. 指出门的位置";
 
@@ -93,8 +94,18 @@ fn example_simple_rectangle_with_vlm() -> Result<(), Box<dyn std::error::Error>>
 
     println!("\n✅ 约束校验:");
     if let Some(ref verification) = result.verification {
-        println!("   - 合法性：{}", if verification.is_valid { "✓ 通过" } else { "✗ 未通过" });
-        println!("   - 总体评分：{:.1}/1.0", verification.overall_score * 10.0);
+        println!(
+            "   - 合法性：{}",
+            if verification.is_valid {
+                "✓ 通过"
+            } else {
+                "✗ 未通过"
+            }
+        );
+        println!(
+            "   - 总体评分：{:.1}/1.0",
+            verification.overall_score * 10.0
+        );
     }
 
     println!("\n⏱️  几何处理耗时：{}ms", result.total_latency_ms);
@@ -113,7 +124,10 @@ fn example_simple_rectangle_with_vlm() -> Result<(), Box<dyn std::error::Error>>
         }
 
         println!("\n📝 VLM 回答:\n");
-        println!("   {}", vlm.content.split('\n').collect::<Vec<_>>().join("\n   "));
+        println!(
+            "   {}",
+            vlm.content.split('\n').collect::<Vec<_>>().join("\n   ")
+        );
     } else {
         println!("\n⚠️  未执行 VLM 推理");
     }
@@ -142,10 +156,7 @@ fn _example_custom_vlm_config() -> Result<(), Box<dyn std::error::Error>> {
         <line x1="0" y1="0" x2="0" y2="100" />
     </svg>"#;
 
-    let result = pipeline.inject_from_svg_string_with_vlm(
-        svg,
-        "分析这个几何图形"
-    )?;
+    let result = pipeline.inject_from_svg_string_with_vlm(svg, "分析这个几何图形")?;
 
     if let Some(ref vlm) = result.vlm_response {
         println!("VLM 回答：{}", vlm.content);
