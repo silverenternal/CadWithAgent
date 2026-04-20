@@ -249,11 +249,6 @@ mod tests {
 
     #[test]
     fn test_full_pipeline() {
-        // 需要 API Key，未设置时跳过
-        if std::env::var("PROVIDER_ZAZAZ_API_KEY").is_err() {
-            return;
-        }
-
         let svg = r#"<svg width="100" height="100">
             <line x1="0" y1="0" x2="100" y2="0" />
             <line x1="0" y1="0" x2="0" y2="100" />
@@ -268,22 +263,15 @@ mod tests {
             .unwrap();
 
         assert!(!result.primitives.is_empty());
-        assert!(!result.relations.is_empty());
+        assert!(result.relations.len() > 0);
         assert!(result.verification.is_some());
         assert!(!result.prompt.full_prompt.is_empty());
     }
 
     #[test]
     fn test_pipeline_without_verification() {
-        // 需要 API Key，未设置时跳过
-        if std::env::var("PROVIDER_ZAZAZ_API_KEY").is_err() {
-            return;
-        }
-
-        let config = AnalysisConfig {
-            skip_verification: true,
-            ..Default::default()
-        };
+        let mut config = AnalysisConfig::default();
+        config.skip_verification = true;
 
         let pipeline = AnalysisPipeline::new(config)
             .expect("创建管线失败，请设置 PROVIDER_ZAZAZ_API_KEY 环境变量");

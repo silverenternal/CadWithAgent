@@ -1,0 +1,893 @@
+{
+  "project": "CadWithAgent - 全流程 AI 自主 CAD 设计",
+  "version": "1.0.0",
+  "updated": "2026-04-07",
+  "current_maturity": "L3.5",
+  "target_maturity": "L5",
+  "description": "从当前 L3.5（深度集成）到 L5（完全自主）的完整执行链路",
+  
+  "phases": [
+    {
+      "id": "phase_0",
+      "name": "阶段 0: 代码质量与技术债务清理",
+      "timeline": "1-2 个月",
+      "priority": "P0",
+      "goal": "清理技术债务，为后续开发打下坚实基础",
+      "tasks": [
+        {
+          "id": "phase_0_task_1",
+          "name": "清理死代码",
+          "description": "移除所有 #[allow(dead_code)] 标记的未使用代码，或真正实现这些功能",
+          "priority": "P1",
+          "effort_weeks": 1,
+          "status": "pending",
+          "files": [
+            "src/gpu/compute.rs (NORMAL_SHADER_WGSL)",
+            "src/geometry/constraint.rs (solve_newton, solve_lm)",
+            "src/geometry/constraint.rs (extract_geometry_from_boundaries)"
+          ],
+          "acceptance_criteria": [
+            "Clippy all-targets: 0 warnings",
+            "死代码要么实现要么删除"
+          ]
+        },
+        {
+          "id": "phase_0_task_2",
+          "name": "大文件拆分重构",
+          "description": "将超过 1500 行的大文件拆分为更小的模块",
+          "priority": "P2",
+          "effort_weeks": 3,
+          "status": "pending",
+          "files": [
+            "src/context/dialog_state.rs (1787 行)",
+            "src/context/task_planner.rs (1524 行)",
+            "src/geometry/constraint.rs (1925 行)"
+          ],
+          "acceptance_criteria": [
+            "单文件不超过 1000 行",
+            "模块边界清晰",
+            "所有测试通过"
+          ]
+        },
+        {
+          "id": "phase_0_task_3",
+          "name": "统一错误处理",
+          "description": "确保所有公共 API 返回 CadAgentResult<T>，移除 unwrap()",
+          "priority": "P1",
+          "effort_weeks": 2,
+          "status": "pending",
+          "acceptance_criteria": [
+            "公共 API 无 unwrap()",
+            "错误类型统一",
+            "错误消息清晰可读"
+          ]
+        },
+        {
+          "id": "phase_0_task_4",
+          "name": "添加适配层抽象",
+          "description": "为 tokitai-context 添加适配层，降低耦合度",
+          "priority": "P0",
+          "effort_weeks": 4,
+          "status": "pending",
+          "acceptance_criteria": [
+            "定义 ContextBackend trait",
+            "实现 TokitaiBackend 适配器",
+            "核心代码通过 trait 调用"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phase_1",
+      "name": "阶段 1: LLM 推理能力完善（L3.5 → L4 过渡）",
+      "timeline": "6-9 个月",
+      "priority": "P0",
+      "goal": "将 Mock 实现替换为真实 LLM 推理，实现真正的智能决策",
+      "tasks": [
+        {
+          "id": "phase_1_task_1",
+          "name": "替换任务理解 Mock 实现",
+          "description": "将 understand_task_mock 替换为真实 LLM 调用，支持开放任务类型理解",
+          "priority": "P0",
+          "effort_weeks": 4,
+          "status": "pending",
+          "files": [
+            "src/llm_reasoning/engine.rs"
+          ],
+          "acceptance_criteria": [
+            "能理解预定义任务类型之外的查询",
+            "任务理解准确率 > 85%",
+            "响应时间 < 3 秒"
+          ]
+        },
+        {
+          "id": "phase_1_task_2",
+          "name": "实现动态规划生成",
+          "description": "使用 LLM 动态生成推理步骤规划，而非硬编码模板",
+          "priority": "P0",
+          "effort_weeks": 6,
+          "status": "pending",
+          "files": [
+            "src/llm_reasoning/engine.rs",
+            "src/llm_reasoning/types.rs"
+          ],
+          "acceptance_criteria": [
+            "能生成 3-5 步推理规划",
+            "规划步骤合理可执行",
+            "支持依赖关系推导"
+          ]
+        },
+        {
+          "id": "phase_1_task_3",
+          "name": "实现真实结论生成",
+          "description": "使用 LLM 基于工具调用结果生成自然语言结论",
+          "priority": "P0",
+          "effort_weeks": 4,
+          "status": "pending",
+          "files": [
+            "src/llm_reasoning/engine.rs"
+          ],
+          "acceptance_criteria": [
+            "结论准确反映推理结果",
+            "语言流畅自然",
+            "支持多轮对话上下文"
+          ]
+        },
+        {
+          "id": "phase_1_task_4",
+          "name": "完善 zazaz 客户端集成",
+          "description": "实现 zazaz LLM 客户端的所有 AI 辅助方法",
+          "priority": "P1",
+          "effort_weeks": 4,
+          "status": "pending",
+          "files": [
+            "src/bridge/zaza_client.rs"
+          ],
+          "acceptance_criteria": [
+            "assist_merge 可用",
+            "resolve_conflict 可用",
+            "infer_branch_purpose 可用",
+            "summarize_branch 可用",
+            "assess_merge_risk 可用"
+          ]
+        },
+        {
+          "id": "phase_1_task_5",
+          "name": "添加本地模型支持",
+          "description": "支持本地部署的 LLM 模型，降低 API 依赖风险",
+          "priority": "P1",
+          "effort_weeks": 6,
+          "status": "pending",
+          "acceptance_criteria": [
+            "支持 Ollama 接入",
+            "支持 LM Studio 接入",
+            "本地/云端模型无缝切换"
+          ]
+        },
+        {
+          "id": "phase_1_task_6",
+          "name": "多轮对话优化",
+          "description": "优化对话状态管理，支持更长的上下文窗口",
+          "priority": "P2",
+          "effort_weeks": 3,
+          "status": "pending",
+          "files": [
+            "src/context/dialog_state.rs",
+            "src/context/dialog_memory/mod.rs"
+          ],
+          "acceptance_criteria": [
+            "支持 50+ 轮对话",
+            "上下文检索准确",
+            "分支切换不影响对话连续性"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phase_2",
+      "name": "阶段 2: 3D 约束求解器完善",
+      "timeline": "4-6 个月",
+      "priority": "P1",
+      "goal": "实现完整的 3D 参数化约束求解能力",
+      "tasks": [
+        {
+          "id": "phase_2_task_1",
+          "name": "实现约束变量依赖分析",
+          "description": "分析每个约束方程依赖的变量，优化 Jacobian 稀疏矩阵填充",
+          "priority": "P0",
+          "effort_weeks": 6,
+          "status": "pending",
+          "files": [
+            "src/geometry/constraint.rs",
+            "src/geometry/constraint_sparse.rs"
+          ],
+          "acceptance_criteria": [
+            "Jacobian 计算复杂度从 O(n²) 降至 O(n log n)",
+            "稀疏度 > 90%",
+            "求解速度提升 3 倍以上"
+          ]
+        },
+        {
+          "id": "phase_2_task_2",
+          "name": "实现非线性约束求解",
+          "description": "支持圆弧约束、相切约束等非线性约束",
+          "priority": "P0",
+          "effort_weeks": 8,
+          "status": "pending",
+          "files": [
+            "src/geometry/constraint.rs",
+            "src/geometry/generic_solver.rs"
+          ],
+          "acceptance_criteria": [
+            "支持相切约束",
+            "支持圆弧约束",
+            "支持非线性方程求解"
+          ]
+        },
+        {
+          "id": "phase_2_task_3",
+          "name": "完善 3D 约束类型",
+          "description": "实现所有 12 种 3D 约束类型的完整求解",
+          "priority": "P1",
+          "effort_weeks": 6,
+          "status": "pending",
+          "files": [
+            "src/geometry/constraint3d.rs"
+          ],
+          "acceptance_criteria": [
+            "Coplanar 完整实现",
+            "Parallel 完整实现",
+            "Perpendicular 完整实现",
+            "PointOnPlane 完整实现",
+            "PointOnLine 完整实现",
+            "所有 3D 约束可求解"
+          ]
+        },
+        {
+          "id": "phase_2_task_4",
+          "name": "实现参数化编辑",
+          "description": "支持拖拽编辑、尺寸驱动等参数化操作",
+          "priority": "P1",
+          "effort_weeks": 8,
+          "status": "pending",
+          "files": [
+            "src/geometry/constraint.rs",
+            "src/feature/feature_tree.rs"
+          ],
+          "acceptance_criteria": [
+            "拖拽点自动调整约束",
+            "修改尺寸驱动模型更新",
+            "实时更新 < 100ms"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phase_3",
+      "name": "阶段 3: 知识学习与进化系统",
+      "timeline": "6-9 个月",
+      "priority": "P1",
+      "goal": "实现从失败中自动学习的能力，构建持续进化的知识库",
+      "tasks": [
+        {
+          "id": "phase_3_task_1",
+          "name": "完善错误案例学习机制",
+          "description": "从每次失败中自动提取案例，更新错误库",
+          "priority": "P0",
+          "effort_weeks": 4,
+          "status": "pending",
+          "files": [
+            "src/context/error_library/mod.rs",
+            "src/context/error_library/learning.rs"
+          ],
+          "acceptance_criteria": [
+            "自动记录失败案例",
+            "自动提取根本原因",
+            "自动关联相似案例"
+          ]
+        },
+        {
+          "id": "phase_3_task_2",
+          "name": "实现案例检索与推荐",
+          "description": "基于语义相似度检索历史案例，推荐解决方案",
+          "priority": "P0",
+          "effort_weeks": 6,
+          "status": "pending",
+          "files": [
+            "src/context/error_library/query.rs"
+          ],
+          "acceptance_criteria": [
+            "语义搜索准确率 > 80%",
+            "推荐方案采纳率 > 60%",
+            "检索响应 < 200ms"
+          ]
+        },
+        {
+          "id": "phase_3_task_3",
+          "name": "构建 CAD 设计知识库",
+          "description": "收集行业最佳实践、设计规范、常见问题",
+          "priority": "P1",
+          "effort_weeks": 8,
+          "status": "pending",
+          "acceptance_criteria": [
+            "收集 1000+ 设计案例",
+            "建立设计规范库",
+            "支持知识检索 API"
+          ]
+        },
+        {
+          "id": "phase_3_task_4",
+          "name": "实现知识图谱",
+          "description": "构建 CAD 领域知识图谱，支持推理和问答",
+          "priority": "P2",
+          "effort_weeks": 10,
+          "status": "pending",
+          "acceptance_criteria": [
+            "实体关系图谱完成",
+            "支持图谱查询",
+            "支持知识推理"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phase_4",
+      "name": "阶段 4: 设计意图理解（L4 基础能力）",
+      "timeline": "12-18 个月",
+      "priority": "P0",
+      "goal": "实现模糊设计意图的理解和转化能力",
+      "tasks": [
+        {
+          "id": "phase_4_task_1",
+          "name": "训练 CAD 领域专用 LLM",
+          "description": "收集 CAD 设计语料，微调 LLM 理解领域术语和概念",
+          "priority": "P0",
+          "effort_weeks": 16,
+          "status": "pending",
+          "acceptance_criteria": [
+            "收集 10 万 + CAD 设计文档",
+            "微调模型完成",
+            "领域术语理解准确率 > 90%"
+          ]
+        },
+        {
+          "id": "phase_4_task_2",
+          "name": "实现意图识别模型",
+          "description": "将模糊的用户需求转化为明确的几何约束",
+          "priority": "P0",
+          "effort_weeks": 12,
+          "status": "pending",
+          "acceptance_criteria": [
+            "理解'开放式厨房'等模糊概念",
+            "转化为具体几何约束",
+            "转化率 > 70%"
+          ]
+        },
+        {
+          "id": "phase_4_task_3",
+          "name": "实现主动提问澄清",
+          "description": "当需求不明确时，主动提问获取更多信息",
+          "priority": "P1",
+          "effort_weeks": 6,
+          "status": "pending",
+          "acceptance_criteria": [
+            "识别需求模糊点",
+            "生成针对性问题",
+            "整合澄清后的需求"
+          ]
+        },
+        {
+          "id": "phase_4_task_4",
+          "name": "实现主观评价理解",
+          "description": "理解'合理'、'美观'、'实用'等主观评价",
+          "priority": "P1",
+          "effort_weeks": 10,
+          "status": "pending",
+          "acceptance_criteria": [
+            "理解主观评价词汇",
+            "转化为可量化指标",
+            "评价一致性 > 75%"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phase_5",
+      "name": "阶段 5: 布局生成与优化（L4 核心能力）",
+      "timeline": "12-18 个月",
+      "priority": "P0",
+      "goal": "实现从需求到设计的自动生成能力",
+      "tasks": [
+        {
+          "id": "phase_5_task_1",
+          "name": "实现基于约束的生成算法",
+          "description": "根据约束条件自动生成满足要求的布局方案",
+          "priority": "P0",
+          "effort_weeks": 12,
+          "status": "pending",
+          "files": [
+            "src/geometry/constraint.rs",
+            "src/topology/room_detect.rs"
+          ],
+          "acceptance_criteria": [
+            "输入约束生成有效布局",
+            "生成时间 < 10 秒",
+            "方案满足所有硬约束"
+          ]
+        },
+        {
+          "id": "phase_5_task_2",
+          "name": "实现多方案生成",
+          "description": "为同一需求生成多个不同风格的方案",
+          "priority": "P0",
+          "effort_weeks": 8,
+          "status": "pending",
+          "acceptance_criteria": [
+            "生成 3-5 个差异化方案",
+            "方案多样性评分 > 0.7",
+            "每个方案都有效"
+          ]
+        },
+        {
+          "id": "phase_5_task_3",
+          "name": "实现方案对比分析",
+          "description": "自动生成方案对比报告，列出优缺点",
+          "priority": "P1",
+          "effort_weeks": 6,
+          "status": "pending",
+          "acceptance_criteria": [
+            "对比维度完整",
+            "优缺点分析准确",
+            "支持可视化对比"
+          ]
+        },
+        {
+          "id": "phase_5_task_4",
+          "name": "实现迭代优化",
+          "description": "根据用户反馈迭代优化设计方案",
+          "priority": "P1",
+          "effort_weeks": 8,
+          "status": "pending",
+          "acceptance_criteria": [
+            "理解反馈意见",
+            "针对性修改方案",
+            "3 轮内达到用户满意"
+          ]
+        },
+        {
+          "id": "phase_5_task_5",
+          "name": "研究扩散模型生成",
+          "description": "探索使用扩散模型直接生成 CAD 布局",
+          "priority": "P2",
+          "effort_weeks": 16,
+          "status": "pending",
+          "acceptance_criteria": [
+            "训练 CAD 布局扩散模型",
+            "生成质量评估",
+            "与传统方法对比"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phase_6",
+      "name": "阶段 6: 多模态交互能力",
+      "timeline": "9-12 个月",
+      "priority": "P2",
+      "goal": "实现草图、语音、手势等多模态交互",
+      "tasks": [
+        {
+          "id": "phase_6_task_1",
+          "name": "实现草图理解",
+          "description": "从手绘草图识别几何形状和设计意图",
+          "priority": "P1",
+          "effort_weeks": 12,
+          "status": "pending",
+          "acceptance_criteria": [
+            "识别基本几何形状",
+            "识别标注和尺寸",
+            "转化为 CAD 模型"
+          ]
+        },
+        {
+          "id": "phase_6_task_2",
+          "name": "实现语音交互",
+          "description": "支持语音输入和语音输出",
+          "priority": "P2",
+          "effort_weeks": 8,
+          "status": "pending",
+          "acceptance_criteria": [
+            "语音识别准确率 > 95%",
+            "语音合成自然流畅",
+            "支持多轮语音对话"
+          ]
+        },
+        {
+          "id": "phase_6_task_3",
+          "name": "实现手势识别",
+          "description": "支持手势操作 CAD 模型",
+          "priority": "P3",
+          "effort_weeks": 10,
+          "status": "pending",
+          "acceptance_criteria": [
+            "识别基本手势",
+            "手势映射到操作",
+            "延迟 < 50ms"
+          ]
+        },
+        {
+          "id": "phase_6_task_4",
+          "name": "AR/VR 集成探索",
+          "description": "探索 AR/VR 环境下的 CAD 设计交互",
+          "priority": "P3",
+          "effort_weeks": 12,
+          "status": "pending",
+          "acceptance_criteria": [
+            "AR 可视化原型",
+            "VR 交互原型",
+            "用户体验评估"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phase_7",
+      "name": "阶段 7: GPU 加速完善",
+      "timeline": "4-6 个月",
+      "priority": "P2",
+      "goal": "完善 GPU 加速能力，支持大规模模型处理",
+      "tasks": [
+        {
+          "id": "phase_7_task_1",
+          "name": "完善 GPU 计算管线",
+          "description": "实现完整的 GPU 几何计算内核",
+          "priority": "P1",
+          "effort_weeks": 8,
+          "status": "pending",
+          "files": [
+            "src/gpu/compute.rs",
+            "src/gpu/nurbs.rs"
+          ],
+          "acceptance_criteria": [
+            "顶点变换 > 1M 顶点/秒",
+            "距离计算并行化",
+            "碰撞检测 GPU 加速"
+          ]
+        },
+        {
+          "id": "phase_7_task_2",
+          "name": "实现 GPU 约束求解",
+          "description": "将约束求解关键路径迁移到 GPU",
+          "priority": "P1",
+          "effort_weeks": 10,
+          "status": "pending",
+          "files": [
+            "src/gpu/compute.rs",
+            "src/geometry/constraint.rs"
+          ],
+          "acceptance_criteria": [
+            "Jacobian 计算 GPU 加速",
+            "大规模约束求解 > 10x 加速",
+            "内存占用优化"
+          ]
+        },
+        {
+          "id": "phase_7_task_3",
+          "name": "实现 GPU 渲染管线",
+          "description": "完善 GPU 渲染能力，支持实时可视化",
+          "priority": "P2",
+          "effort_weeks": 8,
+          "status": "pending",
+          "files": [
+            "src/gpu/renderer.rs"
+          ],
+          "acceptance_criteria": [
+            "实时渲染 > 60fps",
+            "支持抗锯齿",
+            "支持阴影和光照"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phase_8",
+      "name": "阶段 8: 工程化与产品化",
+      "timeline": "6-9 个月",
+      "priority": "P1",
+      "goal": "将研究原型转化为生产级产品",
+      "tasks": [
+        {
+          "id": "phase_8_task_1",
+          "name": "完善文档体系",
+          "description": "整合 10+ 个.md 文件为 3 个核心文档",
+          "priority": "P1",
+          "effort_weeks": 4,
+          "status": "pending",
+          "acceptance_criteria": [
+            "README.md 完整清晰",
+            "ARCHITECTURE.md 技术深度",
+            "API_REFERENCE.md 完整准确"
+          ]
+        },
+        {
+          "id": "phase_8_task_2",
+          "name": "实现 Web UI",
+          "description": "开发基于 Web 的可视化交互界面",
+          "priority": "P0",
+          "effort_weeks": 12,
+          "status": "pending",
+          "acceptance_criteria": [
+            "CAD 可视化",
+            "交互式编辑",
+            "实时预览"
+          ]
+        },
+        {
+          "id": "phase_8_task_3",
+          "name": "实现 CLI 工具",
+          "description": "完善命令行工具，支持批处理和脚本",
+          "priority": "P1",
+          "effort_weeks": 4,
+          "status": "pending",
+          "files": [
+            "src/main.rs"
+          ],
+          "acceptance_criteria": [
+            "支持文件转换",
+            "支持批处理",
+            "支持脚本扩展"
+          ]
+        },
+        {
+          "id": "phase_8_task_4",
+          "name": "性能基准测试",
+          "description": "建立系统的性能基准测试套件",
+          "priority": "P1",
+          "effort_weeks": 4,
+          "status": "pending",
+          "acceptance_criteria": [
+            "与 LibreCAD 对比",
+            "与 FreeCAD 对比",
+            "CI 持续监控"
+          ]
+        },
+        {
+          "id": "phase_8_task_5",
+          "name": "安全性审计",
+          "description": "进行代码安全审计和渗透测试",
+          "priority": "P0",
+          "effort_weeks": 4,
+          "status": "pending",
+          "acceptance_criteria": [
+            "无高危漏洞",
+            "依赖安全检查",
+            "数据加密传输"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phase_9",
+      "name": "阶段 9: 创造性设计能力（L4 → L5 探索）",
+      "timeline": "18-36 个月",
+      "priority": "P0",
+      "goal": "实现创造性设计能力，接近完全自主",
+      "tasks": [
+        {
+          "id": "phase_9_task_1",
+          "name": "训练 CAD 生成大模型",
+          "description": "训练专用的 CAD 设计生成大模型",
+          "priority": "P0",
+          "effort_weeks": 24,
+          "status": "pending",
+          "acceptance_criteria": [
+            "训练数据 > 100 万样本",
+            "模型参数量 > 10B",
+            "生成质量专家评估 > 80 分"
+          ]
+        },
+        {
+          "id": "phase_9_task_2",
+          "name": "实现风格迁移",
+          "description": "将一种设计风格迁移到另一个设计",
+          "priority": "P1",
+          "effort_weeks": 12,
+          "status": "pending",
+          "acceptance_criteria": [
+            "识别设计风格",
+            "风格特征提取",
+            "风格迁移应用"
+          ]
+        },
+        {
+          "id": "phase_9_task_3",
+          "name": "实现设计灵感推荐",
+          "description": "基于用户历史偏好推荐设计灵感",
+          "priority": "P1",
+          "effort_weeks": 10,
+          "status": "pending",
+          "acceptance_criteria": [
+            "用户画像构建",
+            "偏好学习",
+            "推荐准确率 > 70%"
+          ]
+        },
+        {
+          "id": "phase_9_task_4",
+          "name": "实现全流程自动化",
+          "description": "从需求文档直接生成完整 CAD 设计",
+          "priority": "P0",
+          "effort_weeks": 16,
+          "status": "pending",
+          "acceptance_criteria": [
+            "输入需求文档",
+            "输出完整设计",
+            "人工审核通过率 > 60%"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phase_10",
+      "name": "阶段 10: 生态建设与商业化",
+      "timeline": "12-24 个月",
+      "priority": "P2",
+      "goal": "构建开放生态，探索商业化路径",
+      "tasks": [
+        {
+          "id": "phase_10_task_1",
+          "name": "开放 API",
+          "description": "开放核心能力 API，支持第三方集成",
+          "priority": "P1",
+          "effort_weeks": 8,
+          "status": "pending",
+          "acceptance_criteria": [
+            "RESTful API 设计",
+            "API 文档完整",
+            "SDK 支持多语言"
+          ]
+        },
+        {
+          "id": "phase_10_task_2",
+          "name": "插件系统",
+          "description": "实现插件系统，支持社区扩展",
+          "priority": "P1",
+          "effort_weeks": 10,
+          "status": "pending",
+          "acceptance_criteria": [
+            "插件 API 设计",
+            "插件市场",
+            "沙箱安全机制"
+          ]
+        },
+        {
+          "id": "phase_10_task_3",
+          "name": "社区建设",
+          "description": "建设开发者社区和用户社区",
+          "priority": "P2",
+          "effort_weeks": 12,
+          "status": "pending",
+          "acceptance_criteria": [
+            "GitHub 社区活跃",
+            "Discord/Slack 社区",
+            "定期技术分享"
+          ]
+        },
+        {
+          "id": "phase_10_task_4",
+          "name": "商业化探索",
+          "description": "探索可行的商业模式",
+          "priority": "P2",
+          "effort_weeks": 16,
+          "status": "pending",
+          "acceptance_criteria": [
+            "商业模式验证",
+            "付费用户转化",
+            "收入增长可持续"
+          ]
+        }
+      ]
+    }
+  ],
+  
+  "milestones": [
+    {
+      "id": "milestone_1",
+      "name": "L3.5 → L4 过渡完成",
+      "timeline": "9 个月",
+      "description": "LLM 推理能力完善，能理解并执行非预定义任务",
+      "success_criteria": [
+        "所有 Mock 实现替换为真实 LLM 调用",
+        "能理解开放任务类型",
+        "能自主规划 3-5 步推理链",
+        "3D 约束求解器完善"
+      ]
+    },
+    {
+      "id": "milestone_2",
+      "name": "L4 基础能力完成",
+      "timeline": "18 个月",
+      "description": "实现设计意图理解和布局生成能力",
+      "success_criteria": [
+        "理解模糊设计意图",
+        "生成多个布局方案",
+        "根据反馈迭代优化",
+        "知识学习系统运行"
+      ]
+    },
+    {
+      "id": "milestone_3",
+      "name": "L4 高度自主完成",
+      "timeline": "36 个月",
+      "description": "接近完全自主的 CAD 设计能力",
+      "success_criteria": [
+        "从需求文档生成完整设计",
+        "创造性设计能力",
+        "多模态交互完善",
+        "持续学习进化"
+      ]
+    },
+    {
+      "id": "milestone_4",
+      "name": "L5 完全自主探索",
+      "timeline": "48 个月",
+      "description": "探索完全自主的 CAD 设计能力",
+      "success_criteria": [
+        "无需人类干预完成设计",
+        "设计质量达到专业水平",
+        "能处理复杂设计任务",
+        "生态繁荣发展"
+      ]
+    }
+  ],
+  
+  "risks": [
+    {
+      "id": "risk_1",
+      "name": "LLM API 依赖风险",
+      "severity": "高",
+      "probability": "中",
+      "mitigation": "实现本地模型支持，降低 API 依赖"
+    },
+    {
+      "id": "risk_2",
+      "name": "几何算法复杂度风险",
+      "severity": "中",
+      "probability": "中",
+      "mitigation": "持续优化 + GPU 加速"
+    },
+    {
+      "id": "risk_3",
+      "name": "数据隐私风险",
+      "severity": "高",
+      "probability": "高",
+      "mitigation": "本地部署方案，数据加密"
+    },
+    {
+      "id": "risk_4",
+      "name": "技术人才短缺风险",
+      "severity": "高",
+      "probability": "中",
+      "mitigation": "培养团队，吸引人才"
+    }
+  ],
+  
+  "resources_needed": [
+    {
+      "type": "人力",
+      "details": "几何算法工程师 2 名，LLM 工程师 2 名，前端工程师 1 名，产品经理 1 名"
+    },
+    {
+      "type": "计算资源",
+      "details": "GPU 服务器用于模型训练，CI/CD 服务器用于持续集成"
+    },
+    {
+      "type": "数据资源",
+      "details": "CAD 设计数据集 100 万 + 样本，行业设计规范文档"
+    },
+    {
+      "type": "资金",
+      "details": "预计 3 年投入 500-1000 万美元"
+    }
+  ]
+}

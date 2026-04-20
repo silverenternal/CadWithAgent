@@ -10,7 +10,7 @@
 //! - 处理不确定性和多义性
 //! - 生成可解释的推理过程
 //!
-//! # 与 geometry_pipeline 的关系
+//! # 与 `geometry_pipeline` 的关系
 //!
 //! | 模块 | 定位 | 特点 |
 //! |------|------|------|
@@ -59,11 +59,14 @@
 //!
 //! # 使用示例
 //!
+//! ## 模式 1: 使用真实 LLM API（推荐）
+//!
 //! ```rust,no_run
 //! use cadagent::llm_reasoning::{LlmReasoningEngine, LlmReasoningRequest, ReasoningTask};
 //! use serde_json::json;
 //!
-//! let engine = LlmReasoningEngine::new();
+//! // 创建引擎（需要设置 .env 文件中的 ZAZAZ API 配置）
+//! let engine = LlmReasoningEngine::new().expect("Failed to create engine");
 //! let request = LlmReasoningRequest {
 //!     task: "这个户型有多少个房间？".to_string(),
 //!     task_type: ReasoningTask::CountRooms,
@@ -78,6 +81,25 @@
 //! println!("答案：{}", response.chain_of_thought.answer);
 //! println!("置信度：{:.2}", response.chain_of_thought.confidence);
 //! println!("推理步骤：{}", response.chain_of_thought.steps.len());
+//! ```
+//!
+//! ## 模式 2: 仅几何模式（无需 LLM API）
+//!
+//! ```rust,no_run
+//! use cadagent::llm_reasoning::{LlmReasoningEngine, LlmReasoningRequest, ReasoningTask};
+//! use serde_json::json;
+//!
+//! // 创建引擎（不使用 LLM API，回退到预定义模板）
+//! let engine = LlmReasoningEngine::geometry_only();
+//! let request = LlmReasoningRequest {
+//!     task: "测试任务".to_string(),
+//!     task_type: ReasoningTask::Custom,
+//!     context: json!({}),
+//!     verbose: false,
+//! };
+//!
+//! let response = engine.reason(request).unwrap();
+//! println!("答案：{}", response.chain_of_thought.answer);
 //! ```
 
 pub mod engine;
@@ -99,8 +121,8 @@ impl LlmReasoningTools {
     /// # 参数
     ///
     /// * `task` - 任务描述
-    /// * `task_type` - 任务类型："count_rooms", "calculate_area", "measure_dimension",
-    ///                 "detect_doors_windows", "analyze_layout", "custom"
+    /// * `task_type` - `任务类型："count_rooms`", "`calculate_area`", "`measure_dimension`",
+    ///                 "`detect_doors_windows`", "`analyze_layout`", "custom"
     /// * `context` - 上下文数据（JSON 格式）
     ///
     /// # 返回
@@ -108,7 +130,9 @@ impl LlmReasoningTools {
     /// 包含完整思维链和最终答案的响应
     #[tool(name = "llm_reasoning_execute")]
     pub fn execute(&self, task: String, task_type: String, context: String) -> serde_json::Value {
-        let engine = LlmReasoningEngine::new();
+        // 尝试创建 LLM 引擎，失败时使用 geometry_only 模式
+        let engine =
+            LlmReasoningEngine::new().unwrap_or_else(|_| LlmReasoningEngine::geometry_only());
 
         let task_type_parsed = match task_type.to_lowercase().as_str() {
             "count_rooms" => ReasoningTask::CountRooms,

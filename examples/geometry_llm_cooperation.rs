@@ -92,7 +92,13 @@ fn main() {
     // ==================== 示例 3: 使用 llm_reasoning 引擎 ====================
     println!("【示例 3】使用 llm_reasoning 引擎（LLM 思维链）");
 
-    let engine = LlmReasoningEngine::new();
+    let engine = match LlmReasoningEngine::new() {
+        Ok(e) => e,
+        Err(e) => {
+            println!("  创建 LLM 推理引擎失败：{}（可能是 API Key 未设置）", e);
+            return;
+        }
+    };
     let request = LlmReasoningRequest {
         task: "这个户型有多少个房间？".to_string(),
         task_type: ReasoningTask::CountRooms,
@@ -103,7 +109,13 @@ fn main() {
         verbose: false,
     };
 
-    let response = engine.reason(request).unwrap();
+    let response = match engine.reason(request) {
+        Ok(r) => r,
+        Err(e) => {
+            println!("  LLM 推理失败：{}（可能是 API Key 未设置）", e);
+            return;
+        }
+    };
 
     println!("  任务：{}", response.chain_of_thought.task);
     println!("  答案：{}", response.chain_of_thought.answer);

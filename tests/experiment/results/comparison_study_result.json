@@ -1,0 +1,13 @@
+{
+  "experiment_name": "Comparison Study",
+  "passed": true,
+  "duration_secs": 0.000070552,
+  "metrics": {
+    "cadagent_score": 0.9,
+    "cadagent_rank": 1.0,
+    "total_methods_compared": 7.0
+  },
+  "data": {},
+  "errors": [],
+  "timestamp": "Unix timestamp: 1775278238"
+}

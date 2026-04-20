@@ -1,0 +1,16 @@
+[
+  {
+    "fingerprint": "ae6a874fc641c2a0",
+    "content_paths": [
+      ".context/sessions/default-session/content_adf0a352029d1ea08a596d6ecb8d8f5b2a5f851f4247a0977fb355e5131ae14e"
+    ],
+    "updated_at": "2026-04-07T11:40:29.724264763Z"
+  },
+  {
+    "fingerprint": "ae6a8c1b0601d2a0",
+    "content_paths": [
+      ".context/sessions/default-session/content_c9b92bb639ecc88bf909e0cd588f8ded363675d800fe93230b3ecde8cf088e82"
+    ],
+    "updated_at": "2026-04-07T11:40:28.786906892Z"
+  }
+]

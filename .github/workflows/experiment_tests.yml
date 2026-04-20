@@ -1,0 +1,145 @@
+name: Experiment Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # 运行实验测试
+  experiment-tests:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+        with:
+          components: rustfmt, clippy
+      
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Build project
+        run: cargo build --release
+      
+      - name: Run all tests
+        run: cargo test --release
+      
+      - name: Run experiment tests
+        run: cargo test --test experiment_test -- --nocapture
+      
+      - name: Upload experiment results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: experiment-results
+          path: tests/experiment/results/
+          retention-days: 30
+
+  # 性能回归检测
+  performance-regression:
+    runs-on: ubuntu-latest
+    needs: experiment-tests
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+      
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Build project
+        run: cargo build --release
+      
+      - name: Run performance benchmark
+        run: cargo test --test experiment_test exp2_performance_benchmark -- --nocapture
+      
+      - name: Download baseline results
+        uses: dawidd6/action-download-artifact@v3
+        if: github.event_name == 'pull_request'
+        with:
+          workflow: experiment_tests.yml
+          branch: ${{ github.base_ref }}
+          name: experiment-results
+          path: tests/experiment/results/baseline/
+        continue-on-error: true
+      
+      - name: Run regression check
+        run: |
+          python3 tests/experiment/scripts/check_regression.py \
+            --threshold 5.0 \
+            --output tests/experiment/results/regression_report.json
+      
+      - name: Upload regression report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: regression-report
+          path: tests/experiment/results/regression_report.json
+          retention-days: 30
+
+  # 代码质量检查
+  code-quality:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+        with:
+          components: rustfmt, clippy
+      
+      - name: Check formatting
+        run: cargo fmt -- --check
+      
+      - name: Run Clippy
+        run: cargo clippy -- -D warnings
+      
+      - name: Run cargo doc
+        run: cargo doc --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
+
+  # 汇总检查结果
+  summary:
+    runs-on: ubuntu-latest
+    needs: [experiment-tests, performance-regression, code-quality]
+    if: always()
+    
+    steps:
+      - name: Check job status
+        run: |
+          echo "Experiment Tests: ${{ needs.experiment-tests.result }}"
+          echo "Performance Regression: ${{ needs.performance-regression.result }}"
+          echo "Code Quality: ${{ needs.code-quality.result }}"
+          
+          if [[ "${{ needs.experiment-tests.result }}" == "failure" ]] || \
+             [[ "${{ needs.performance-regression.result }}" == "failure" ]] || \
+             [[ "${{ needs.code-quality.result }}" == "failure" ]]; then
+            echo "❌ 检查失败"
+            exit 1
+          else
+            echo "✅ 所有检查通过"
+          fi

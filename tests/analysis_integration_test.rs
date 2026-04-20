@@ -1,6 +1,7 @@
 //! analysis 模块集成测试
 
 use cadagent::analysis::{AnalysisConfig, AnalysisPipeline};
+use cadagent::error::GeometryConfig;
 use cadagent::prelude::*;
 
 /// 测试：分析管线配置验证
@@ -11,24 +12,24 @@ fn test_analysis_config_validation() {
     assert!(config.validate().is_ok());
 
     // 测试无效归一化范围
-    let invalid_config = AnalysisConfig {
-        normalize_range: [100.0, 0.0],
+    let invalid_config = AnalysisConfig::from(GeometryConfig {
+        normalize_range: [100.0, 0.0], // 最小值 > 最大值
         ..Default::default()
-    }; // 最小值 > 最大值
+    });
     assert!(invalid_config.validate().is_err());
 
     // 测试无效角度容差
-    let invalid_config = AnalysisConfig {
+    let invalid_config = AnalysisConfig::from(GeometryConfig {
         angle_tolerance: -0.01,
         ..Default::default()
-    };
+    });
     assert!(invalid_config.validate().is_err());
 
     // 测试 validate_or_fix 自动修正
-    let mut config_to_fix = AnalysisConfig {
+    let mut config_to_fix = AnalysisConfig::from(GeometryConfig {
         angle_tolerance: -0.01,
         ..Default::default()
-    };
+    });
     let warnings = config_to_fix.validate_or_fix();
     assert!(!warnings.is_empty());
     assert!((config_to_fix.angle_tolerance - 0.01).abs() < 1e-10);

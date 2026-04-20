@@ -5,7 +5,7 @@
 ## 项目状态
 
 - **版本**: v0.1.0
-- **测试状态**: 248+ 测试全部通过
+- **测试状态**: 770+ 测试全部通过
 - **测试覆盖率**: 80%+
 - **构建状态**: 稳定
 
@@ -81,7 +81,7 @@ cargo clippy -- -D warnings
 
 - 所有新功能必须添加单元测试
 - 核心模块覆盖率需达到 80%+
-- 所有测试必须通过
+- 所有测试必须通过（当前 770+ 测试）
 
 ```bash
 # 运行所有测试
@@ -90,6 +90,7 @@ cargo test
 # 运行特定测试
 cargo test --test geometry_tests
 cargo test --test cad_reasoning_tests
+cargo test --test integration_tests
 
 # 生成覆盖率报告
 cargo tarpaulin --output-dir coverage --out html
@@ -123,20 +124,25 @@ git commit -m "test: 添加几何关系检测单元测试"
 ```
 src/
 ├── analysis/          # 统一分析管线（推荐使用）
-├── config/            # 配置管理（新增）
+├── bridge/            # VLM 桥接层
 ├── cad_extractor/     # CAD 基元提取
 ├── cad_reasoning/     # 几何关系推理
 ├── cad_verifier/      # 约束校验
-├── prompt_builder/    # 提示词构造
-├── geometry/          # 几何图元与工具
-├── topology/          # 拓扑分析
+├── config/            # 配置管理
 ├── cot/               # Geo-CoT 生成
-├── parser/            # 文件解析
 ├── export/            # 文件导出
-├── bridge/            # VLM 桥接
-├── tools/             # 工具注册表
+├── feature/           # 参数化特征树
+├── geometry/          # 几何图元与工具
+├── gpu/               # GPU 加速计算与渲染
+├── incremental/       # 增量更新系统
 ├── llm_reasoning/     # LLM 推理
-└── metrics/           # 评估指标
+├── lod/               # 多层次细节 (LOD)
+├── memory/            # 内存优化（Arena、对象池）
+├── metrics/           # 评估指标
+├── parser/            # 文件解析（SVG/DXF/STEP/IGES）
+├── prompt_builder/    # 提示词构造
+├── tools/             # 工具注册表
+└── topology/          # 拓扑分析
 ```
 
 ### 添加新工具

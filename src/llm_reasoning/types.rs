@@ -1,18 +1,28 @@
 //! LLM 推理核心数据类型
 //!
-//! 定义大模型驱动的思维链数据结构
+//! 定义大模型驱动的思维链数据结构，支持：
+//! - **动态推理步骤**: LLM 根据任务动态生成推理流程
+//! - **工具调用**: 集成几何处理工具获取结构化数据
+//! - **不确定性处理**: 显式建模和跟踪推理中的不确定性
+//! - **可解释性**: 完整的思维链记录，支持审计和调试
 //!
-//! # 定位说明
+//! # 核心数据结构
 //!
-//! 这是**真正的思维链模块**，由 LLM 驱动推理过程：
-//! - 动态生成推理步骤
-//! - 支持回溯和条件分支
-//! - 处理不确定性和多义性
-//! - 生成可解释的推理过程
+//! | 结构体 | 用途 |
+//! |--------|------|
+//! | `ReasoningTask` | 推理任务类型（房间计数、面积计算等） |
+//! | `ReasoningStep` | 单个推理步骤（理解、规划、工具调用等） |
+//! | `ChainOfThought` | 完整的思维链（步骤序列 + 结论） |
+//! | `LlmReasoningRequest/Response` | 推理请求/响应 |
+//! | `ReasoningPlan` | LLM 生成的执行计划 |
+//! | `Uncertainty` | 不确定性建模 |
 
 use serde::{Deserialize, Serialize};
 
 /// 推理任务类型
+///
+/// 定义了 LLM 推理引擎支持的任务类型，每种类型对应特定的
+/// 几何分析目标。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ReasoningTask {
@@ -31,19 +41,30 @@ pub enum ReasoningTask {
 }
 
 /// 推理状态
+///
+/// 表示推理过程当前的执行状态，用于跟踪进度和处理异步操作。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ReasoningState {
+    /// 等待开始
     #[default]
     Pending,
+    /// 思考中
     Thinking,
+    /// 等待工具调用结果
     WaitingForTool,
+    /// 回溯修正中
     Revising,
+    /// 已完成
     Completed,
+    /// 失败
     Failed,
 }
 
 /// 推理步骤（由 LLM 动态生成）
+///
+/// 每个步骤代表推理过程中的一个逻辑单元，包含思考内容、
+/// 工具调用（如有）和观察结果。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReasoningStep {
     /// 步骤 ID
@@ -61,6 +82,8 @@ pub struct ReasoningStep {
 }
 
 /// 步骤类型
+///
+/// 定义推理步骤的类型，反映思维链中的不同认知活动。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StepType {
@@ -81,6 +104,8 @@ pub enum StepType {
 }
 
 /// 工具调用信息
+///
+/// 记录推理过程中对几何处理工具的调用详情。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolCallInfo {
     /// 工具名称
@@ -92,15 +117,22 @@ pub struct ToolCallInfo {
 }
 
 /// 工具调用状态
+///
+/// 表示工具调用的执行结果。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ToolCallStatus {
+    /// 等待执行
     Pending,
+    /// 成功
     Success,
+    /// 失败
     Failed,
 }
 
 /// 思维链（LLM 生成的完整推理过程）
+///
+/// 包含从任务理解到最终结论的完整推理轨迹，支持可解释的 AI 决策。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChainOfThought {
     /// 任务描述
@@ -118,6 +150,8 @@ pub struct ChainOfThought {
 }
 
 /// LLM 推理请求
+///
+/// 发送给推理引擎的任务请求，包含任务描述和上下文数据。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LlmReasoningRequest {
     /// 任务描述
@@ -131,6 +165,8 @@ pub struct LlmReasoningRequest {
 }
 
 /// LLM 推理响应
+///
+/// 推理引擎返回的完整结果，包含思维链和统计信息。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LlmReasoningResponse {
     /// 思维链
@@ -142,6 +178,8 @@ pub struct LlmReasoningResponse {
 }
 
 /// 推理规划（LLM 生成的执行计划）
+///
+/// 在正式推理前，LLM 会生成一个执行计划，规划需要的步骤和工具。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReasoningPlan {
     /// 任务描述
@@ -153,6 +191,8 @@ pub struct ReasoningPlan {
 }
 
 /// 计划步骤
+///
+/// 推理计划中的单个步骤，定义执行顺序和依赖关系。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanStep {
     /// 步骤序号
@@ -168,6 +208,8 @@ pub struct PlanStep {
 }
 
 /// 推理中的假设
+///
+/// 在不确定性推理中，LLM 会生成多个假设并进行验证。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Hypothesis {
     /// 假设描述
@@ -185,6 +227,8 @@ pub struct Hypothesis {
 }
 
 /// 推理中的不确定性
+///
+/// 显式建模推理过程中的不确定性来源和影响程度。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Uncertainty {
     /// 不确定性描述
@@ -198,6 +242,8 @@ pub struct Uncertainty {
 }
 
 /// 不确定性来源
+///
+/// 识别不确定性的具体来源，帮助选择适当的处理策略。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum UncertaintySource {
@@ -214,11 +260,17 @@ pub enum UncertaintySource {
 }
 
 /// 影响程度
+///
+/// 评估不确定性对最终结论的影响程度。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ImpactLevel {
+    /// 低影响
     Low,
+    /// 中等影响
     Medium,
+    /// 高影响
     High,
+    /// 关键影响
     Critical,
 }

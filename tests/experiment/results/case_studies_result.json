@@ -1,0 +1,14 @@
+{
+  "experiment_name": "Case Studies",
+  "passed": true,
+  "duration_secs": 0.000029916,
+  "metrics": {
+    "avg_user_satisfaction": 4.466666666666668,
+    "avg_quality_score": 0.9166666666666666,
+    "total_cases": 6.0,
+    "completion_rate": 1.0
+  },
+  "data": {},
+  "errors": [],
+  "timestamp": "Unix timestamp: 1775278238"
+}

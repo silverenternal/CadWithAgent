@@ -187,14 +187,13 @@ impl GeoCotGenerator {
             "检测到{}个房间，外边界由{}个点组成。",
             rooms.len(),
             self.find_outer_boundary(primitives)
-                .map(|p| p.vertices.len())
-                .unwrap_or(0)
+                .map_or(0, |p| p.vertices.len())
         )
     }
 
     /// 格式化思维链
     fn format_thinking(&self, perception: &str, reasoning: &str) -> String {
-        format!("<thinking>\n{}\n\n{}\n</thinking>", perception, reasoning)
+        format!("<thinking>\n{perception}\n\n{reasoning}\n</thinking>")
     }
 
     /// 格式化坐标
@@ -209,9 +208,11 @@ impl GeoCotGenerator {
     fn find_outer_boundary(&self, primitives: &[Primitive]) -> Option<Polygon> {
         // 简化实现：查找面积最大的闭合回路
         let loops = self.find_all_loops(primitives);
-        loops
-            .into_iter()
-            .max_by(|a, b| a.area().partial_cmp(&b.area()).unwrap())
+        loops.into_iter().max_by(|a, b| {
+            a.area()
+                .partial_cmp(&b.area())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
     }
 
     fn find_rooms(&self, primitives: &[Primitive]) -> Vec<Room> {
@@ -224,7 +225,11 @@ impl GeoCotGenerator {
 
         // 移除最大的（外边界）
         if loops.len() > 1 {
-            loops.sort_by(|a, b| b.area().partial_cmp(&a.area()).unwrap());
+            loops.sort_by(|a, b| {
+                b.area()
+                    .partial_cmp(&a.area())
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
             loops.remove(0);
         }
 
@@ -310,5 +315,285 @@ impl GeoCotTools {
     pub fn generate_reasoning(&self, primitives: Vec<Primitive>, task: String) -> String {
         let generator = GeoCotGenerator::new();
         generator.generate_reasoning(&primitives, &task)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::geometry::Line;
+
+    fn create_test_polygon() -> Polygon {
+        Polygon::from_coords(vec![[0.0, 0.0], [100.0, 0.0], [100.0, 100.0], [0.0, 100.0]])
+    }
+
+    #[test]
+    fn test_generator_new() {
+        let generator = GeoCotGenerator::new();
+        assert!(!generator.templates.perception.pattern.is_empty());
+    }
+
+    #[test]
+    fn test_generator_default() {
+        let generator = GeoCotGenerator::default();
+        assert!(!generator.templates.perception.pattern.is_empty());
+    }
+
+    #[test]
+    fn test_generate_area_task() {
+        let generator = GeoCotGenerator::new();
+        let primitives = vec![Primitive::Polygon(create_test_polygon())];
+
+        let result = generator.generate(&primitives, "计算房间面积");
+
+        assert_eq!(result.task, "计算房间面积");
+        assert!(result.perception.contains("房间"));
+        assert!(result.reasoning.contains("面积计算") || result.reasoning.contains("鞋带公式"));
+        assert!(result.summary.contains("面积"));
+        assert!(result.thinking.contains("<thinking>"));
+        assert!(result.answer.contains("面积"));
+    }
+
+    #[test]
+    fn test_generate_room_count_task() {
+        let generator = GeoCotGenerator::new();
+        let primitives = vec![Primitive::Polygon(create_test_polygon())];
+
+        let result = generator.generate(&primitives, "统计房间数量");
+
+        assert_eq!(result.task, "统计房间数量");
+        assert!(result.summary.contains("房间"));
+    }
+
+    #[test]
+    fn test_generate_width_task() {
+        let generator = GeoCotGenerator::new();
+        let primitives = vec![Primitive::Polygon(create_test_polygon())];
+
+        let result = generator.generate(&primitives, "计算建筑宽度");
+
+        assert!(result.summary.contains("宽度"));
+    }
+
+    #[test]
+    fn test_generate_door_task() {
+        let generator = GeoCotGenerator::new();
+        let primitives = vec![
+            Primitive::Polygon(create_test_polygon()),
+            Primitive::Text {
+                content: "门".to_string(),
+                position: Point { x: 50.0, y: 0.0 },
+                height: 10.0,
+            },
+        ];
+
+        let result = generator.generate(&primitives, "检测门的位置");
+
+        assert!(result.reasoning.contains("门窗检测"));
+    }
+
+    #[test]
+    fn test_generate_dimension_task() {
+        let generator = GeoCotGenerator::new();
+        let primitives = vec![Primitive::Polygon(create_test_polygon())];
+
+        let result = generator.generate(&primitives, "测量房间宽度");
+
+        assert!(result.reasoning.contains("尺寸测量"));
+    }
+
+    #[test]
+    fn test_generate_empty_primitives() {
+        let generator = GeoCotGenerator::new();
+        let primitives: Vec<Primitive> = vec![];
+
+        let result = generator.generate(&primitives, "分析户型图");
+
+        assert_eq!(result.task, "分析户型图");
+        // 空基元时，房间数量为 0
+        assert!(result.summary.contains("0"));
+    }
+
+    #[test]
+    fn test_generate_multiple_rooms() {
+        let generator = GeoCotGenerator::new();
+        let room1 = Polygon::from_coords(vec![[0.0, 0.0], [50.0, 0.0], [50.0, 50.0], [0.0, 50.0]]);
+        let room2 =
+            Polygon::from_coords(vec![[60.0, 0.0], [100.0, 0.0], [100.0, 50.0], [60.0, 50.0]]);
+        let primitives = vec![Primitive::Polygon(room1), Primitive::Polygon(room2)];
+
+        let result = generator.generate(&primitives, "分析所有房间");
+
+        assert!(result.perception.contains("房间"));
+    }
+
+    #[test]
+    fn test_format_coords() {
+        let generator = GeoCotGenerator::new();
+        let points = vec![Point { x: 0.0, y: 0.0 }, Point { x: 100.0, y: 100.0 }];
+
+        let formatted = generator.format_coords(&points);
+
+        assert!(formatted.contains("[0, 0]"));
+        assert!(formatted.contains("[100, 100]"));
+        assert!(formatted.contains(" -> "));
+    }
+
+    #[test]
+    fn test_find_outer_boundary() {
+        let generator = GeoCotGenerator::new();
+        let large_room =
+            Polygon::from_coords(vec![[0.0, 0.0], [200.0, 0.0], [200.0, 200.0], [0.0, 200.0]]);
+        let small_room =
+            Polygon::from_coords(vec![[10.0, 10.0], [50.0, 10.0], [50.0, 50.0], [10.0, 50.0]]);
+        let primitives = vec![
+            Primitive::Polygon(large_room),
+            Primitive::Polygon(small_room),
+        ];
+
+        let boundary = generator.find_outer_boundary(&primitives);
+
+        assert!(boundary.is_some());
+        assert_eq!(boundary.unwrap().vertices.len(), 4);
+    }
+
+    #[test]
+    fn test_find_rooms() {
+        let generator = GeoCotGenerator::new();
+        let outer =
+            Polygon::from_coords(vec![[0.0, 0.0], [100.0, 0.0], [100.0, 100.0], [0.0, 100.0]]);
+        let inner =
+            Polygon::from_coords(vec![[10.0, 10.0], [50.0, 10.0], [50.0, 50.0], [10.0, 50.0]]);
+        let primitives = vec![Primitive::Polygon(outer), Primitive::Polygon(inner)];
+
+        let rooms = generator.find_rooms(&primitives);
+
+        assert_eq!(rooms.len(), 1);
+        assert!(rooms[0].name.contains("房间"));
+    }
+
+    #[test]
+    fn test_find_rooms_empty() {
+        let generator = GeoCotGenerator::new();
+        let primitives: Vec<Primitive> = vec![];
+
+        let rooms = generator.find_rooms(&primitives);
+
+        assert!(rooms.is_empty());
+    }
+
+    #[test]
+    fn test_find_all_loops() {
+        let generator = GeoCotGenerator::new();
+        let poly = create_test_polygon();
+        let primitives = vec![Primitive::Polygon(poly)];
+
+        let loops = generator.find_all_loops(&primitives);
+
+        assert_eq!(loops.len(), 1);
+    }
+
+    #[test]
+    fn test_find_all_loops_no_polygons() {
+        let generator = GeoCotGenerator::new();
+        let primitives = vec![Primitive::Line(Line::from_coords(
+            [0.0, 0.0],
+            [100.0, 100.0],
+        ))];
+
+        let loops = generator.find_all_loops(&primitives);
+
+        assert!(loops.is_empty());
+    }
+
+    #[test]
+    fn test_find_all_loops_small_polygon() {
+        let generator = GeoCotGenerator::new();
+        let small_poly = Polygon::from_coords(vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]);
+        let primitives = vec![Primitive::Polygon(small_poly)];
+
+        let loops = generator.find_all_loops(&primitives);
+
+        assert_eq!(loops.len(), 1);
+    }
+
+    #[test]
+    fn test_generate_perception_with_door_marker() {
+        let generator = GeoCotGenerator::new();
+        let primitives = vec![
+            Primitive::Polygon(create_test_polygon()),
+            Primitive::Text {
+                content: "D".to_string(),
+                position: Point { x: 50.0, y: 0.0 },
+                height: 10.0,
+            },
+        ];
+
+        let perception = generator.generate_perception(&primitives);
+
+        assert!(perception.contains("门"));
+    }
+
+    #[test]
+    fn test_generate_reasoning_empty_task() {
+        let generator = GeoCotGenerator::new();
+        let primitives = vec![Primitive::Polygon(create_test_polygon())];
+
+        let reasoning = generator.generate_reasoning(&primitives, "未知任务");
+
+        assert!(reasoning.is_empty() || reasoning.contains("房间"));
+    }
+
+    #[test]
+    fn test_generate_summary_default() {
+        let generator = GeoCotGenerator::new();
+        let primitives = vec![Primitive::Polygon(create_test_polygon())];
+
+        let summary = generator.generate_summary(&primitives, "分析图形");
+
+        assert!(summary.contains("房间"));
+    }
+
+    #[test]
+    fn test_format_thinking() {
+        let generator = GeoCotGenerator::new();
+
+        let thinking = generator.format_thinking("感知内容", "推理内容");
+
+        assert!(thinking.contains("<thinking>"));
+        assert!(thinking.contains("感知内容"));
+        assert!(thinking.contains("推理内容"));
+        assert!(thinking.contains("</thinking>"));
+    }
+
+    #[test]
+    fn test_geo_cot_data_clone() {
+        let data = GeoCotData {
+            task: "测试".to_string(),
+            perception: "感知".to_string(),
+            reasoning: "推理".to_string(),
+            summary: "总结".to_string(),
+            thinking: "思维".to_string(),
+            answer: "答案".to_string(),
+        };
+
+        let cloned = data.clone();
+        assert_eq!(cloned.task, data.task);
+        assert_eq!(cloned.answer, data.answer);
+    }
+
+    #[test]
+    fn test_geo_cot_data_debug() {
+        let data = GeoCotData {
+            task: "测试".to_string(),
+            perception: "感知".to_string(),
+            reasoning: "推理".to_string(),
+            summary: "总结".to_string(),
+            thinking: "思维".to_string(),
+            answer: "答案".to_string(),
+        };
+
+        let debug_str = format!("{:?}", data);
+        assert!(debug_str.contains("GeoCotData"));
     }
 }

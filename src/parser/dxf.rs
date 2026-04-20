@@ -61,7 +61,7 @@ impl DxfParser {
 
         let mut file = fs::File::open(&canonical_path)?;
         let drawing = dxf::Drawing::load(&mut file)
-            .map_err(|e| DxfError::ParseError(format!("DXF 加载失败：{}", e)))?;
+            .map_err(|e| DxfError::ParseError(format!("DXF 加载失败：{e}")))?;
 
         Self::from_drawing(&drawing)
     }
@@ -73,7 +73,7 @@ impl DxfParser {
     pub fn parse_string(content: &str) -> Result<DxfResult, DxfError> {
         let mut cursor = Cursor::new(content.as_bytes());
         let drawing = dxf::Drawing::load(&mut cursor)
-            .map_err(|e| DxfError::ParseError(format!("DXF 解析失败：{}", e)))?;
+            .map_err(|e| DxfError::ParseError(format!("DXF 解析失败：{e}")))?;
 
         Self::from_drawing(&drawing)
     }
@@ -81,9 +81,6 @@ impl DxfParser {
     /// 从 DXF Drawing 提取图元
     fn from_drawing(drawing: &dxf::Drawing) -> Result<DxfResult, DxfError> {
         let mut primitives = Vec::new();
-        // 提取元数据
-        // 注意：DXF Header 字段名称较为复杂，当前简化处理
-        // TODO: 完善 header 字段访问
         let metadata = DxfMetadata {
             version: drawing.header.version.to_string(),
             units: "Unknown".to_string(),
@@ -92,7 +89,20 @@ impl DxfParser {
 
         // 解析实体 - 使用迭代器 API
         // 注意：DXF crate API 较为复杂，当前为简化实现
-        // TODO: 完善所有实体类型的解析
+        //
+        // 已支持的实体类型：
+        // - Line: 直线段
+        // - Circle: 圆
+        // - Arc: 圆弧
+        // - LwPolyline/Polyline: 多段线（闭合时为 Polygon）
+        // - Text/MText: 文本标注
+        //
+        // 待支持的实体类型（未来扩展）：
+        // - Spline: NURBS 曲线
+        // - Ellipse: 椭圆
+        // - Hatch: 填充图案
+        // - Dimension: 尺寸标注
+        // - Leader: 引线
         for entity_item in drawing.entities() {
             let entity = entity_item;
             match &entity.specific {
@@ -308,22 +318,22 @@ EOF
         // 检查线段
         match &result.primitives[0] {
             Primitive::Line(line) => {
-                assert!((line.start.x - 0.0).abs() < 0.001);
-                assert!((line.start.y - 0.0).abs() < 0.001);
-                assert!((line.end.x - 100.0).abs() < 0.001);
-                assert!((line.end.y - 0.0).abs() < 0.001);
+                assert!((line.start.x - 0.0).abs() < 0.001, "线段起点 X 坐标不正确");
+                assert!((line.start.y - 0.0).abs() < 0.001, "线段起点 Y 坐标不正确");
+                assert!((line.end.x - 100.0).abs() < 0.001, "线段终点 X 坐标不正确");
+                assert!((line.end.y - 0.0).abs() < 0.001, "线段终点 Y 坐标不正确");
             }
-            _ => panic!("期望线段"),
+            other => panic!("期望线段，得到：{:?}", other),
         }
 
         // 检查圆
         match &result.primitives[1] {
             Primitive::Circle(circle) => {
-                assert!((circle.center.x - 50.0).abs() < 0.001);
-                assert!((circle.center.y - 50.0).abs() < 0.001);
-                assert!((circle.radius - 25.0).abs() < 0.001);
+                assert!((circle.center.x - 50.0).abs() < 0.001, "圆心 X 坐标不正确");
+                assert!((circle.center.y - 50.0).abs() < 0.001, "圆心 Y 坐标不正确");
+                assert!((circle.radius - 25.0).abs() < 0.001, "圆半径不正确");
             }
-            _ => panic!("期望圆"),
+            other => panic!("期望圆，得到：{:?}", other),
         }
     }
 
@@ -378,9 +388,9 @@ EOF
         assert_eq!(result.primitives.len(), 1);
         match &result.primitives[0] {
             Primitive::Polygon(poly) => {
-                assert_eq!(poly.vertices.len(), 4);
+                assert_eq!(poly.vertices.len(), 4, "多边形顶点数不正确");
             }
-            _ => panic!("期望多边形"),
+            other => panic!("期望多边形，得到：{:?}", other),
         }
     }
 
@@ -429,12 +439,12 @@ EOF
                 position,
                 height,
             } => {
-                assert_eq!(content, "Hello World");
-                assert!((position.x - 50.0).abs() < 0.001);
-                assert!((position.y - 50.0).abs() < 0.001);
-                assert!((height - 100.0).abs() < 0.001);
+                assert_eq!(content, "Hello World", "文本内容不正确");
+                assert!((position.x - 50.0).abs() < 0.001, "文本 X 坐标不正确");
+                assert!((position.y - 50.0).abs() < 0.001, "文本 Y 坐标不正确");
+                assert!((height - 100.0).abs() < 0.001, "文本高度不正确");
             }
-            _ => panic!("期望文本"),
+            other => panic!("期望文本，得到：{:?}", other),
         }
     }
 
@@ -486,13 +496,263 @@ EOF
                 start_angle,
                 end_angle,
             } => {
-                assert!((center.x - 0.0).abs() < 0.001);
-                assert!((center.y - 0.0).abs() < 0.001);
-                assert!((radius - 50.0).abs() < 0.001);
-                assert!((start_angle - 0.0).abs() < 0.001);
-                assert!((end_angle - 90.0).abs() < 0.001);
+                assert!((center.x - 0.0).abs() < 0.001, "圆弧中心 X 坐标不正确");
+                assert!((center.y - 0.0).abs() < 0.001, "圆弧中心 Y 坐标不正确");
+                assert!((radius - 50.0).abs() < 0.001, "圆弧半径不正确");
+                assert!((start_angle - 0.0).abs() < 0.001, "起始角不正确");
+                assert!((end_angle - 90.0).abs() < 0.001, "终止角不正确");
             }
-            _ => panic!("期望圆弧"),
+            other => panic!("期望圆弧，得到：{:?}", other),
         }
+    }
+
+    #[test]
+    fn test_parse_text2() {
+        let dxf_content = r#"0
+SECTION
+2
+HEADER
+9
+$ACADVER
+1
+AC1015
+0
+ENDSEC
+0
+SECTION
+2
+ENTITIES
+0
+TEXT
+8
+0
+10
+10.0
+20
+20.0
+30
+0.0
+40
+2.5
+1
+Hello DXF
+0
+ENDSEC
+0
+EOF
+"#;
+
+        let result = DxfParser::parse_string(dxf_content).unwrap();
+
+        assert_eq!(result.primitives.len(), 1);
+        match &result.primitives[0] {
+            Primitive::Text {
+                content,
+                position,
+                height,
+            } => {
+                assert_eq!(content, "Hello DXF", "文本内容不正确");
+                assert!((position.x - 10.0).abs() < 0.001, "文本 X 坐标不正确");
+                assert!((position.y - 20.0).abs() < 0.001, "文本 Y 坐标不正确");
+                assert!((height - 2.5).abs() < 0.001, "文本高度不正确");
+            }
+            other => panic!("期望文本，得到：{:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_lwpolyline_closed() {
+        let dxf_content = r#"0
+SECTION
+2
+HEADER
+9
+$ACADVER
+1
+AC1015
+0
+ENDSEC
+0
+SECTION
+2
+ENTITIES
+0
+LWPOLYLINE
+8
+0
+90
+4
+70
+1
+10
+0.0
+20
+0.0
+10
+100.0
+20
+0.0
+10
+100.0
+20
+100.0
+10
+0.0
+20
+100.0
+0
+ENDSEC
+0
+EOF
+"#;
+
+        let result = DxfParser::parse_string(dxf_content).unwrap();
+
+        assert_eq!(result.primitives.len(), 1);
+        match &result.primitives[0] {
+            Primitive::Polygon(poly) => {
+                assert_eq!(poly.vertices.len(), 4, "多边形顶点数不正确");
+            }
+            other => panic!("期望多边形，得到：{:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_lwpolyline_open() {
+        let dxf_content = r#"0
+SECTION
+2
+HEADER
+9
+$ACADVER
+1
+AC1015
+0
+ENDSEC
+0
+SECTION
+2
+ENTITIES
+0
+LWPOLYLINE
+8
+0
+90
+3
+70
+0
+10
+0.0
+20
+0.0
+10
+50.0
+20
+50.0
+10
+100.0
+20
+0.0
+0
+ENDSEC
+0
+EOF
+"#;
+
+        let result = DxfParser::parse_string(dxf_content).unwrap();
+
+        assert_eq!(result.primitives.len(), 1);
+        match &result.primitives[0] {
+            Primitive::Polyline { points, closed } => {
+                assert_eq!(points.len(), 3, "折线点数不正确");
+                assert!(!closed, "折线应为开放状态");
+            }
+            other => panic!("期望折线，得到：{:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_empty_dxf() {
+        let dxf_content = r#"0
+SECTION
+2
+HEADER
+9
+$ACADVER
+1
+AC1015
+0
+ENDSEC
+0
+SECTION
+2
+ENTITIES
+0
+ENDSEC
+0
+EOF
+"#;
+
+        let result = DxfParser::parse_string(dxf_content).unwrap();
+
+        assert_eq!(result.primitives.len(), 0);
+        assert_eq!(result.metadata.version, "AC1015");
+    }
+
+    #[test]
+    fn test_parse_invalid_dxf() {
+        let dxf_content = "invalid dxf content";
+        let result = DxfParser::parse_string(dxf_content);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_dxf_result_serialization() {
+        let dxf_content = r#"0
+SECTION
+2
+HEADER
+9
+$ACADVER
+1
+AC1015
+0
+ENDSEC
+0
+SECTION
+2
+ENTITIES
+0
+LINE
+8
+0
+10
+0.0
+20
+0.0
+30
+0.0
+11
+100.0
+21
+0.0
+31
+0.0
+0
+ENDSEC
+0
+EOF
+"#;
+
+        let result = DxfParser::parse_string(dxf_content).unwrap();
+
+        // 测试序列化
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("primitives"));
+        assert!(json.contains("metadata"));
+
+        // 测试反序列化
+        let deserialized: DxfResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.primitives.len(), 1);
     }
 }

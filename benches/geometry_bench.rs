@@ -60,7 +60,7 @@ fn create_perpendicular_lines(count: usize) -> Vec<Primitive> {
 }
 
 fn bench_measure_length(c: &mut Criterion) {
-    let measurer = GeometryMeasurer;
+    let mut measurer = GeometryMeasurer::new();
     let start = [0.0, 0.0];
     let end = [3.0, 4.0];
 
@@ -70,7 +70,7 @@ fn bench_measure_length(c: &mut Criterion) {
 }
 
 fn bench_measure_area(c: &mut Criterion) {
-    let measurer = GeometryMeasurer;
+    let mut measurer = GeometryMeasurer::new();
     let vertices = vec![[0.0, 0.0], [100.0, 0.0], [100.0, 100.0], [0.0, 100.0]];
 
     c.bench_function("measure_area", |b| {

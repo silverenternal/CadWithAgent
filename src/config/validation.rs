@@ -31,6 +31,7 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use smallvec::{smallvec, SmallVec};
 use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
@@ -54,12 +55,36 @@ pub enum ConfigValidationError {
 pub struct ValidationResult {
     /// 是否通过验证
     pub is_valid: bool,
-    /// 验证通过的项目列表
-    pub passed_checks: Vec<String>,
-    /// 验证错误列表
-    pub errors: Vec<String>,
-    /// 警告列表（非阻塞性问题）
-    pub warnings: Vec<String>,
+    /// 验证通过的项目列表（使用 `SmallVec` 优化小集合）
+    #[serde(with = "smallvec_serde")]
+    pub passed_checks: SmallVec<[String; 4]>,
+    /// 验证错误列表（使用 `SmallVec` 优化小集合）
+    #[serde(with = "smallvec_serde")]
+    pub errors: SmallVec<[String; 4]>,
+    /// 警告列表（非阻塞性问题，使用 `SmallVec` 优化小集合）
+    #[serde(with = "smallvec_serde")]
+    pub warnings: SmallVec<[String; 4]>,
+}
+
+/// `SmallVec` 序列化/反序列化辅助模块
+mod smallvec_serde {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use smallvec::SmallVec;
+
+    pub fn serialize<S>(vec: &SmallVec<[String; 4]>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        vec.as_slice().serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<SmallVec<[String; 4]>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let vec = Vec::<String>::deserialize(deserializer)?;
+        Ok(vec.into())
+    }
 }
 
 /// 支持的模型提供商
@@ -147,9 +172,9 @@ impl ConfigValidator {
 
     /// 验证配置对象
     pub fn validate(&self, config: &Value) -> ValidationResult {
-        let mut passed_checks = Vec::new();
-        let mut errors = Vec::new();
-        let mut warnings = Vec::new();
+        let mut passed_checks = smallvec![];
+        let mut errors = smallvec![];
+        let mut warnings = smallvec![];
 
         // 验证 project 部分
         self.validate_project_section(config, &mut passed_checks, &mut errors, &mut warnings);
@@ -180,9 +205,9 @@ impl ConfigValidator {
     fn validate_project_section(
         &self,
         config: &Value,
-        passed: &mut Vec<String>,
-        errors: &mut Vec<String>,
-        _warnings: &mut Vec<String>,
+        passed: &mut SmallVec<[String; 4]>,
+        errors: &mut SmallVec<[String; 4]>,
+        _warnings: &mut SmallVec<[String; 4]>,
     ) {
         if let Some(project) = config.get("project") {
             // 验证 name 字段
@@ -217,9 +242,9 @@ impl ConfigValidator {
     fn validate_model_settings(
         &self,
         config: &Value,
-        passed: &mut Vec<String>,
-        errors: &mut Vec<String>,
-        warnings: &mut Vec<String>,
+        passed: &mut SmallVec<[String; 4]>,
+        errors: &mut SmallVec<[String; 4]>,
+        warnings: &mut SmallVec<[String; 4]>,
     ) {
         if let Some(model_settings) = config.get("model_settings") {
             // 验证 supported_models
@@ -227,15 +252,14 @@ impl ConfigValidator {
                 .get("supported_models")
                 .and_then(|v| v.as_array())
             {
-                let mut invalid_models = Vec::new();
+                let mut invalid_models: SmallVec<[String; 4]> = smallvec![];
 
                 for model in models {
                     if let Some(model_str) = model.as_str() {
                         if !self.supported_models.contains(model_str) {
                             if self.allow_custom_models {
                                 warnings.push(format!(
-                                    "模型 '{}' 不在预支持列表中，将作为自定义模型处理",
-                                    model_str
+                                    "模型 '{model_str}' 不在预支持列表中，将作为自定义模型处理"
                                 ));
                             } else {
                                 invalid_models.push(model_str.to_string());
@@ -254,7 +278,7 @@ impl ConfigValidator {
             // 验证 default_resolution
             if let Some(resolution) = model_settings
                 .get("default_resolution")
-                .and_then(|v| v.as_u64())
+                .and_then(serde_json::Value::as_u64)
             {
                 if (256..=4096).contains(&resolution) {
                     passed.push("model_settings.default_resolution 验证通过".to_string());
@@ -267,7 +291,7 @@ impl ConfigValidator {
             // 验证 max_resolution
             if let Some(max_res) = model_settings
                 .get("max_resolution")
-                .and_then(|v| v.as_u64())
+                .and_then(serde_json::Value::as_u64)
             {
                 if (512..=8192).contains(&max_res) {
                     passed.push("model_settings.max_resolution 验证通过".to_string());
@@ -280,12 +304,12 @@ impl ConfigValidator {
             for field in &["enable_cot", "enable_tool_calling"] {
                 if model_settings
                     .get(field)
-                    .and_then(|v| v.as_bool())
+                    .and_then(serde_json::Value::as_bool)
                     .is_some()
                 {
-                    passed.push(format!("model_settings.{} 验证通过", field));
+                    passed.push(format!("model_settings.{field} 验证通过"));
                 } else {
-                    warnings.push(format!("model_settings.{} 建议显式设置", field));
+                    warnings.push(format!("model_settings.{field} 建议显式设置"));
                 }
             }
         } else {
@@ -296,15 +320,15 @@ impl ConfigValidator {
     fn validate_measurement_settings(
         &self,
         config: &Value,
-        passed: &mut Vec<String>,
-        errors: &mut Vec<String>,
-        warnings: &mut Vec<String>,
+        passed: &mut SmallVec<[String; 4]>,
+        errors: &mut SmallVec<[String; 4]>,
+        warnings: &mut SmallVec<[String; 4]>,
     ) {
         if let Some(measurement) = config.get("measurement_settings") {
             // 验证 distance_tolerance
             if let Some(tolerance) = measurement
                 .get("distance_tolerance")
-                .and_then(|v| v.as_f64())
+                .and_then(serde_json::Value::as_f64)
             {
                 if tolerance > 0.0 && tolerance < 100.0 {
                     passed.push("measurement_settings.distance_tolerance 验证通过".to_string());
@@ -316,7 +340,10 @@ impl ConfigValidator {
             }
 
             // 验证 angle_tolerance
-            if let Some(tolerance) = measurement.get("angle_tolerance").and_then(|v| v.as_f64()) {
+            if let Some(tolerance) = measurement
+                .get("angle_tolerance")
+                .and_then(serde_json::Value::as_f64)
+            {
                 if tolerance > 0.0 && tolerance < 90.0 {
                     passed.push("measurement_settings.angle_tolerance 验证通过".to_string());
                 } else {
@@ -331,11 +358,11 @@ impl ConfigValidator {
                 "default_window_width",
                 "default_window_height",
             ] {
-                if let Some(value) = measurement.get(field).and_then(|v| v.as_f64()) {
+                if let Some(value) = measurement.get(field).and_then(serde_json::Value::as_f64) {
                     if value > 0.0 {
-                        passed.push(format!("measurement_settings.{} 验证通过", field));
+                        passed.push(format!("measurement_settings.{field} 验证通过"));
                     } else {
-                        errors.push(format!("measurement_settings.{} 应为正数", field));
+                        errors.push(format!("measurement_settings.{field} 应为正数"));
                     }
                 }
             }
@@ -347,14 +374,14 @@ impl ConfigValidator {
     fn validate_export_settings(
         &self,
         config: &Value,
-        passed: &mut Vec<String>,
-        errors: &mut Vec<String>,
-        warnings: &mut Vec<String>,
+        passed: &mut SmallVec<[String; 4]>,
+        errors: &mut SmallVec<[String; 4]>,
+        warnings: &mut SmallVec<[String; 4]>,
     ) {
         if let Some(export) = config.get("export_settings") {
             // 验证 DXF 设置
             if let Some(dxf) = export.get("dxf") {
-                if let Some(precision) = dxf.get("precision").and_then(|v| v.as_u64()) {
+                if let Some(precision) = dxf.get("precision").and_then(serde_json::Value::as_u64) {
                     if precision <= 10 {
                         passed.push("export_settings.dxf.precision 验证通过".to_string());
                     } else {
@@ -367,8 +394,7 @@ impl ConfigValidator {
                         passed.push("export_settings.dxf.unit 验证通过".to_string());
                     } else {
                         errors.push(format!(
-                            "export_settings.dxf.unit 不支持：{} (支持的单位：mm, cm, m, inch, ft)",
-                            unit
+                            "export_settings.dxf.unit 不支持：{unit} (支持的单位：mm, cm, m, inch, ft)"
                         ));
                     }
                 }
@@ -377,8 +403,12 @@ impl ConfigValidator {
             // 验证 JSON 设置
             if let Some(json) = export.get("json") {
                 for field in &["pretty", "include_metadata"] {
-                    if json.get(field).and_then(|v| v.as_bool()).is_some() {
-                        passed.push(format!("export_settings.json.{} 验证通过", field));
+                    if json
+                        .get(field)
+                        .and_then(serde_json::Value::as_bool)
+                        .is_some()
+                    {
+                        passed.push(format!("export_settings.json.{field} 验证通过"));
                     }
                 }
             }
@@ -390,9 +420,9 @@ impl ConfigValidator {
     fn validate_cot_templates(
         &self,
         config: &Value,
-        passed: &mut Vec<String>,
-        errors: &mut Vec<String>,
-        warnings: &mut Vec<String>,
+        passed: &mut SmallVec<[String; 4]>,
+        errors: &mut SmallVec<[String; 4]>,
+        warnings: &mut SmallVec<[String; 4]>,
     ) {
         if let Some(templates) = config.get("geo_cot_templates") {
             // 验证模板字段包含必要的占位符
@@ -403,13 +433,11 @@ impl ConfigValidator {
                     // 检查是否包含至少一个占位符
                     if pattern.contains('{') && pattern.contains('}') {
                         passed.push(format!(
-                            "geo_cot_templates.{}.pattern 验证通过",
-                            template_name
+                            "geo_cot_templates.{template_name}.pattern 验证通过"
                         ));
                     } else {
                         errors.push(format!(
-                            "geo_cot_templates.{}.pattern 应包含至少一个占位符 ({{placeholder}})",
-                            template_name
+                            "geo_cot_templates.{template_name}.pattern 应包含至少一个占位符 ({{placeholder}})"
                         ));
                     }
                 }
@@ -422,24 +450,23 @@ impl ConfigValidator {
     fn validate_room_type_rules(
         &self,
         config: &Value,
-        passed: &mut Vec<String>,
-        errors: &mut Vec<String>,
-        warnings: &mut Vec<String>,
+        passed: &mut SmallVec<[String; 4]>,
+        errors: &mut SmallVec<[String; 4]>,
+        warnings: &mut SmallVec<[String; 4]>,
     ) {
         if let Some(rules) = config.get("room_type_rules").and_then(|v| v.as_array()) {
             for (idx, rule) in rules.iter().enumerate() {
                 // 验证 condition 字段
                 if let Some(condition) = rule.get("condition").and_then(|v| v.as_str()) {
                     if self.validate_condition_syntax(condition) {
-                        passed.push(format!("room_type_rules[{}].condition 验证通过", idx));
+                        passed.push(format!("room_type_rules[{idx}].condition 验证通过"));
                     } else {
                         errors.push(format!(
-                            "room_type_rules[{}].condition 语法不正确：{}",
-                            idx, condition
+                            "room_type_rules[{idx}].condition 语法不正确：{condition}"
                         ));
                     }
                 } else {
-                    errors.push(format!("room_type_rules[{}] 缺少 condition 字段", idx));
+                    errors.push(format!("room_type_rules[{idx}] 缺少 condition 字段"));
                 }
 
                 // 验证 room_type 字段
@@ -448,16 +475,15 @@ impl ConfigValidator {
                     .and_then(|v| v.as_str())
                     .is_some_and(|s| !s.is_empty())
                 {
-                    passed.push(format!("room_type_rules[{}].room_type 验证通过", idx));
+                    passed.push(format!("room_type_rules[{idx}].room_type 验证通过"));
                 } else {
-                    errors.push(format!("room_type_rules[{}].room_type 不能为空", idx));
+                    errors.push(format!("room_type_rules[{idx}].room_type 不能为空"));
                 }
 
                 // 验证 description 字段（可选）
                 if rule.get("description").is_none() {
                     warnings.push(format!(
-                        "room_type_rules[{}] 缺少 description 字段（建议添加）",
-                        idx
+                        "room_type_rules[{idx}] 缺少 description 字段（建议添加）"
                     ));
                 }
             }

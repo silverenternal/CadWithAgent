@@ -76,15 +76,15 @@ impl DxfExporter {
             }
             Primitive::Polyline { points, closed } => {
                 if points.len() >= 2 {
-                    for i in 0..points.len() - 1 {
+                    for i in 0..points.len().saturating_sub(1) {
                         let p1 = &points[i];
                         let p2 = &points[i + 1];
                         dxf.add_line(p1.x, p1.y, 0.0, p2.x, p2.y, 0.0);
                     }
                     if *closed {
-                        let p1 = points.last().unwrap();
-                        let p2 = &points[0];
-                        dxf.add_line(p1.x, p1.y, 0.0, p2.x, p2.y, 0.0);
+                        if let (Some(p1), Some(p2)) = (points.last(), points.first()) {
+                            dxf.add_line(p1.x, p1.y, 0.0, p2.x, p2.y, 0.0);
+                        }
                     }
                 }
             }
@@ -95,6 +95,40 @@ impl DxfExporter {
                 end_angle,
             } => {
                 dxf.add_arc(center.x, center.y, 0.0, *radius, *start_angle, *end_angle);
+            }
+            Primitive::EllipticalArc(arc) => {
+                // 近似椭圆弧为圆弧（使用平均半径）
+                let avg_radius = f64::midpoint(arc.rx, arc.ry);
+                dxf.add_arc(
+                    arc.center().x,
+                    arc.center().y,
+                    0.0,
+                    avg_radius,
+                    0.0,
+                    std::f64::consts::PI,
+                );
+            }
+            Primitive::BezierCurve(curve) => {
+                // 将贝塞尔曲线近似为线段
+                dxf.add_line(
+                    curve.start.x,
+                    curve.start.y,
+                    0.0,
+                    curve.end.x,
+                    curve.end.y,
+                    0.0,
+                );
+            }
+            Primitive::QuadraticBezier(curve) => {
+                // 将二次贝塞尔曲线近似为线段
+                dxf.add_line(
+                    curve.start.x,
+                    curve.start.y,
+                    0.0,
+                    curve.end.x,
+                    curve.end.y,
+                    0.0,
+                );
             }
             Primitive::Text {
                 content,
@@ -149,18 +183,15 @@ impl DxfExporter {
             }
 
             // 添加房间名称和面积
-            dxf.add_text(
-                &room.name,
-                room.boundary.vertices[0].x,
-                room.boundary.vertices[0].y,
-                150.0,
-            );
-            dxf.add_text(
-                &format!("Area: {:.2}", room.area),
-                room.boundary.vertices[0].x,
-                room.boundary.vertices[0].y - 200.0,
-                100.0,
-            );
+            if let Some(first_vertex) = room.boundary.vertices.first() {
+                dxf.add_text(&room.name, first_vertex.x, first_vertex.y, 150.0);
+                dxf.add_text(
+                    &format!("Area: {:.2}", room.area),
+                    first_vertex.x,
+                    first_vertex.y - 200.0,
+                    100.0,
+                );
+            }
         }
 
         dxf.write_to(output_path.as_ref())?;
@@ -298,11 +329,11 @@ impl DxfDocument {
                 writeln!(writer, "0")?;
                 writeln!(writer, "POINT")?;
                 writeln!(writer, "10")?;
-                writeln!(writer, "{}", x)?;
+                writeln!(writer, "{x}")?;
                 writeln!(writer, "20")?;
-                writeln!(writer, "{}", y)?;
+                writeln!(writer, "{y}")?;
                 writeln!(writer, "30")?;
-                writeln!(writer, "{}", z)?;
+                writeln!(writer, "{z}")?;
             }
             DxfEntity::Line { start, end } => {
                 writeln!(writer, "0")?;
@@ -330,7 +361,7 @@ impl DxfDocument {
                 writeln!(writer, "30")?;
                 writeln!(writer, "{}", center[2])?;
                 writeln!(writer, "40")?;
-                writeln!(writer, "{}", radius)?;
+                writeln!(writer, "{radius}")?;
             }
             DxfEntity::Arc {
                 center,
@@ -347,11 +378,11 @@ impl DxfDocument {
                 writeln!(writer, "30")?;
                 writeln!(writer, "{}", center[2])?;
                 writeln!(writer, "40")?;
-                writeln!(writer, "{}", radius)?;
+                writeln!(writer, "{radius}")?;
                 writeln!(writer, "50")?;
-                writeln!(writer, "{}", start_angle)?;
+                writeln!(writer, "{start_angle}")?;
                 writeln!(writer, "51")?;
-                writeln!(writer, "{}", end_angle)?;
+                writeln!(writer, "{end_angle}")?;
             }
             DxfEntity::Text {
                 content,
@@ -361,7 +392,7 @@ impl DxfDocument {
                 writeln!(writer, "0")?;
                 writeln!(writer, "TEXT")?;
                 writeln!(writer, "1")?;
-                writeln!(writer, "{}", content)?;
+                writeln!(writer, "{content}")?;
                 writeln!(writer, "10")?;
                 writeln!(writer, "{}", position[0])?;
                 writeln!(writer, "20")?;
@@ -369,7 +400,7 @@ impl DxfDocument {
                 writeln!(writer, "30")?;
                 writeln!(writer, "{}", position[2])?;
                 writeln!(writer, "40")?;
-                writeln!(writer, "{}", height)?;
+                writeln!(writer, "{height}")?;
             }
         }
         Ok(())

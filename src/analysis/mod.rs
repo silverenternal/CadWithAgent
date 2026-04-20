@@ -32,10 +32,17 @@
 //! println!("工具调用链：{:?}", result.tool_call_chain);
 //! ```
 
+pub mod closed_region_detector;
+pub mod geometry_pipeline_trait;
 pub mod pipeline;
 pub mod tools;
 pub mod types;
 
+pub use closed_region_detector::ClosedRegionDetector;
+pub use geometry_pipeline_trait::*;
 pub use pipeline::*;
 pub use tools::*;
 pub use types::*;
+
+// Re-export MockGeometryPipeline for convenience
+pub use geometry_pipeline_trait::MockGeometryPipeline;

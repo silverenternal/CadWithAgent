@@ -8,6 +8,17 @@ use std::fs::File;
 use std::io::Write;
 use std::path::Path;
 
+/// 内部辅助函数：将数据序列化为 JSON 并写入文件
+fn write_json_file<T: Serialize + ?Sized>(
+    data: &T,
+    output_path: impl AsRef<Path>,
+) -> Result<String, JsonExportError> {
+    let json_str = serde_json::to_string_pretty(data)?;
+    let mut file = File::create(output_path.as_ref())?;
+    file.write_all(json_str.as_bytes())?;
+    Ok(output_path.as_ref().to_string_lossy().to_string())
+}
+
 /// JSON 导出器
 pub struct JsonExporter;
 
@@ -17,13 +28,11 @@ impl JsonExporter {
         primitives: &[Primitive],
         output_path: impl AsRef<Path>,
     ) -> Result<JsonExportResult, JsonExportError> {
-        let json_str = serde_json::to_string_pretty(primitives)?;
-        let mut file = File::create(output_path.as_ref())?;
-        file.write_all(json_str.as_bytes())?;
+        let path = write_json_file(primitives, output_path)?;
 
         Ok(JsonExportResult {
             success: true,
-            path: output_path.as_ref().to_string_lossy().to_string(),
+            path,
             entity_count: primitives.len(),
         })
     }
@@ -41,13 +50,11 @@ impl JsonExporter {
             answer: answer.to_string(),
         };
 
-        let json_str = serde_json::to_string_pretty(&cot_data)?;
-        let mut file = File::create(output_path.as_ref())?;
-        file.write_all(json_str.as_bytes())?;
+        let path = write_json_file(&cot_data, output_path)?;
 
         Ok(JsonExportResult {
             success: true,
-            path: output_path.as_ref().to_string_lossy().to_string(),
+            path,
             entity_count: primitives.len(),
         })
     }
@@ -57,13 +64,11 @@ impl JsonExporter {
         rooms: &[Room],
         output_path: impl AsRef<Path>,
     ) -> Result<JsonExportResult, JsonExportError> {
-        let json_str = serde_json::to_string_pretty(rooms)?;
-        let mut file = File::create(output_path.as_ref())?;
-        file.write_all(json_str.as_bytes())?;
+        let path = write_json_file(rooms, output_path)?;
 
         Ok(JsonExportResult {
             success: true,
-            path: output_path.as_ref().to_string_lossy().to_string(),
+            path,
             entity_count: rooms.len(),
         })
     }
@@ -87,13 +92,11 @@ impl JsonExporter {
             answer: answer.to_string(),
         };
 
-        let json_str = serde_json::to_string_pretty(&training_data)?;
-        let mut file = File::create(output_path.as_ref())?;
-        file.write_all(json_str.as_bytes())?;
+        let path = write_json_file(&training_data, output_path)?;
 
         Ok(JsonExportResult {
             success: true,
-            path: output_path.as_ref().to_string_lossy().to_string(),
+            path,
             entity_count: 1,
         })
     }
@@ -154,13 +157,11 @@ pub fn export_qa_dataset(
     qa_pairs: &[QAPair],
     output_path: impl AsRef<Path>,
 ) -> Result<JsonExportResult, JsonExportError> {
-    let json_str = serde_json::to_string_pretty(qa_pairs)?;
-    let mut file = File::create(output_path.as_ref())?;
-    file.write_all(json_str.as_bytes())?;
+    let path = write_json_file(qa_pairs, output_path)?;
 
     Ok(JsonExportResult {
         success: true,
-        path: output_path.as_ref().to_string_lossy().to_string(),
+        path,
         entity_count: qa_pairs.len(),
     })
 }

@@ -1,0 +1,23 @@
+{
+  "experiment_name": "Ablation Study",
+  "passed": true,
+  "duration_secs": 0.000059251,
+  "metrics": {
+    "module_3_contribution": 10.526315789473681,
+    "full_system_accuracy": 0.95,
+    "full_system_throughput": 1000.0,
+    "module_1_contribution": 15.789473684210517,
+    "module_2_contribution": 13.684210526315791,
+    "module_4_contribution": 3.1578947368420964,
+    "module_0_contribution": 21.052631578947363
+  },
+  "data": {
+    "module_1_name": "Context Injection",
+    "module_2_name": "Relation Reasoning",
+    "module_3_name": "Geometry Verification",
+    "module_0_name": "Tool Augmentation",
+    "module_4_name": "R-tree Spatial Index"
+  },
+  "errors": [],
+  "timestamp": "Unix timestamp: 1775278238"
+}

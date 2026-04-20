@@ -78,12 +78,12 @@ mod tests {
         let wall = Line::new(Point::new(0.0, 0.0), Point::new(1000.0, 0.0));
         let primitives = vec![Primitive::Text {
             content: "门".to_string(),
-            position: Point::new(500.0, 200.0), // 距离墙太远
+            position: Point::new(500.0, 500.0), // 距离墙太远 (超过 300mm 阈值)
             height: 100.0,
         }];
 
         let doors = detect_doors_in_wall(&wall, &primitives);
-        // 距离超过 100.0，不应该被检测到
+        // 距离超过 300mm，不应该被检测到
         assert!(doors.is_empty());
     }
 

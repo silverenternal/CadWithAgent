@@ -1,4 +1,5 @@
 //! QA 生成器
+#![allow(clippy::cast_precision_loss)]
 //!
 //! 基于几何图元自动生成问答对
 
@@ -147,8 +148,7 @@ impl QaGenerator {
         qa_pairs.push(QAPair {
             question: "图中有多少个门？".to_string(),
             answer: format!(
-                "<thinking>查找文本标记'门'或'D'->检测墙体缺口</thinking>图中共有{}个门。",
-                door_count
+                "<thinking>查找文本标记'门'或'D'->检测墙体缺口</thinking>图中共有{door_count}个门。"
             ),
             thinking: Some("查找文本标记'门'或'D'->检测墙体缺口".to_string()),
             question_type: "count".to_string(),
@@ -162,7 +162,7 @@ impl QaGenerator {
         let mut qa_pairs = Vec::new();
         let rooms = self.extract_rooms(primitives);
 
-        for room in rooms.iter() {
+        for room in &rooms {
             if let Some(centroid) = self.calculate_centroid(&room.boundary) {
                 qa_pairs.push(QAPair {
                     question: format!("{}的中心位置在哪里？", room.name),
@@ -185,7 +185,11 @@ impl QaGenerator {
         if rooms.len() >= 2 {
             // 面积比较
             let mut sorted_rooms = rooms.clone();
-            sorted_rooms.sort_by(|a, b| b.area.partial_cmp(&a.area).unwrap());
+            sorted_rooms.sort_by(|a, b| {
+                b.area
+                    .partial_cmp(&a.area)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
 
             qa_pairs.push(QAPair {
                 question: "哪个房间的面积最大？".to_string(),
@@ -346,5 +350,387 @@ impl QaTools {
     pub fn generate_count_qa(&self, primitives: Vec<Primitive>) -> Vec<QAPair> {
         let generator = QaGenerator::new();
         generator.generate_count_questions(&primitives)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_test_polygon() -> Polygon {
+        Polygon::from_coords(vec![[0.0, 0.0], [100.0, 0.0], [100.0, 100.0], [0.0, 100.0]])
+    }
+
+    fn create_test_room() -> Room {
+        Room {
+            name: "测试房间".to_string(),
+            boundary: create_test_polygon(),
+            area: 10000.0,
+            doors: vec![],
+            windows: vec![],
+        }
+    }
+
+    #[test]
+    fn test_generator_new() {
+        let generator = QaGenerator::new();
+        assert!(!generator.template.question_patterns.is_empty());
+    }
+
+    #[test]
+    fn test_generator_default() {
+        let generator = QaGenerator::default();
+        assert!(!generator.template.question_patterns.is_empty());
+    }
+
+    #[test]
+    fn test_generate_all() {
+        let generator = QaGenerator::new();
+        let primitives = vec![Primitive::Polygon(create_test_polygon())];
+
+        let qa_pairs = generator.generate_all(&primitives);
+
+        assert!(!qa_pairs.is_empty());
+        assert!(qa_pairs.iter().any(|qa| qa.question_type == "area"));
+        assert!(qa_pairs.iter().any(|qa| qa.question_type == "count"));
+    }
+
+    #[test]
+    fn test_generate_area_questions() {
+        let generator = QaGenerator::new();
+        let room = create_test_room();
+        let primitives = vec![Primitive::Polygon(room.boundary)];
+
+        let qa_pairs = generator.generate_area_questions(&primitives);
+
+        assert!(!qa_pairs.is_empty());
+        let area_qa = qa_pairs
+            .iter()
+            .find(|qa| qa.question_type == "area")
+            .unwrap();
+        assert!(area_qa.question.contains("面积"));
+        assert!(area_qa.answer.contains("平方单位"));
+        assert!(area_qa.thinking.is_some());
+    }
+
+    #[test]
+    fn test_generate_area_questions_empty() {
+        let generator = QaGenerator::new();
+        let primitives: Vec<Primitive> = vec![];
+
+        let qa_pairs = generator.generate_area_questions(&primitives);
+
+        assert!(qa_pairs.is_empty());
+    }
+
+    #[test]
+    fn test_generate_total_area_question() {
+        let generator = QaGenerator::new();
+        let room1 = Polygon::from_coords(vec![[0.0, 0.0], [50.0, 0.0], [50.0, 50.0], [0.0, 50.0]]);
+        let room2 =
+            Polygon::from_coords(vec![[60.0, 0.0], [100.0, 0.0], [100.0, 50.0], [60.0, 50.0]]);
+        let primitives = vec![Primitive::Polygon(room1), Primitive::Polygon(room2)];
+
+        let qa_pairs = generator.generate_area_questions(&primitives);
+
+        assert!(qa_pairs.iter().any(|qa| qa.question_type == "total_area"));
+    }
+
+    #[test]
+    fn test_generate_dimension_questions() {
+        let generator = QaGenerator::new();
+        let primitives = vec![Primitive::Polygon(create_test_polygon())];
+
+        let qa_pairs = generator.generate_dimension_questions(&primitives);
+
+        assert!(!qa_pairs.is_empty());
+        assert!(qa_pairs.iter().any(|qa| qa.question_type == "width"));
+        assert!(qa_pairs.iter().any(|qa| qa.question_type == "height"));
+    }
+
+    #[test]
+    fn test_generate_dimension_questions_no_boundary() {
+        let generator = QaGenerator::new();
+        let primitives: Vec<Primitive> = vec![];
+
+        let qa_pairs = generator.generate_dimension_questions(&primitives);
+
+        assert!(qa_pairs.is_empty());
+    }
+
+    #[test]
+    fn test_generate_count_questions() {
+        let generator = QaGenerator::new();
+        let primitives = vec![Primitive::Polygon(create_test_polygon())];
+
+        let qa_pairs = generator.generate_count_questions(&primitives);
+
+        assert!(!qa_pairs.is_empty());
+        let count_qa = qa_pairs
+            .iter()
+            .find(|qa| qa.question.contains("房间"))
+            .unwrap();
+        assert!(count_qa.answer.contains("房间"));
+        assert_eq!(count_qa.question_type, "count");
+    }
+
+    #[test]
+    fn test_generate_count_questions_with_doors() {
+        let generator = QaGenerator::new();
+        let primitives = vec![
+            Primitive::Polygon(create_test_polygon()),
+            Primitive::Text {
+                content: "门".to_string(),
+                position: Point { x: 50.0, y: 0.0 },
+                height: 10.0,
+            },
+        ];
+
+        let qa_pairs = generator.generate_count_questions(&primitives);
+
+        assert!(qa_pairs.iter().any(|qa| qa.question.contains("门")));
+    }
+
+    #[test]
+    fn test_generate_position_questions() {
+        let generator = QaGenerator::new();
+        let room = create_test_room();
+        let primitives = vec![Primitive::Polygon(room.boundary)];
+
+        let qa_pairs = generator.generate_position_questions(&primitives);
+
+        assert!(!qa_pairs.is_empty());
+        let pos_qa = qa_pairs.first().unwrap();
+        assert!(pos_qa.question.contains("中心位置"));
+        assert!(pos_qa.answer.contains("坐标"));
+    }
+
+    #[test]
+    fn test_generate_position_questions_empty() {
+        let generator = QaGenerator::new();
+        let primitives: Vec<Primitive> = vec![];
+
+        let qa_pairs = generator.generate_position_questions(&primitives);
+
+        assert!(qa_pairs.is_empty());
+    }
+
+    #[test]
+    fn test_generate_relation_questions() {
+        let generator = QaGenerator::new();
+        let room1 =
+            Polygon::from_coords(vec![[0.0, 0.0], [100.0, 0.0], [100.0, 100.0], [0.0, 100.0]]);
+        let room2 =
+            Polygon::from_coords(vec![[10.0, 10.0], [50.0, 10.0], [50.0, 50.0], [10.0, 50.0]]);
+        let primitives = vec![Primitive::Polygon(room1), Primitive::Polygon(room2)];
+
+        let qa_pairs = generator.generate_relation_questions(&primitives);
+
+        assert!(!qa_pairs.is_empty());
+        assert!(qa_pairs.iter().any(|qa| qa.question.contains("最大")));
+    }
+
+    #[test]
+    fn test_generate_relation_questions_single_room() {
+        let generator = QaGenerator::new();
+        let primitives = vec![Primitive::Polygon(create_test_polygon())];
+
+        let qa_pairs = generator.generate_relation_questions(&primitives);
+
+        assert!(qa_pairs.is_empty());
+    }
+
+    #[test]
+    fn test_extract_rooms() {
+        let generator = QaGenerator::new();
+        let room = create_test_room();
+        let primitives = vec![Primitive::Polygon(room.boundary)];
+
+        let rooms = generator.extract_rooms(&primitives);
+
+        assert_eq!(rooms.len(), 1);
+        assert!(rooms[0].name.contains("房间"));
+    }
+
+    #[test]
+    fn test_extract_rooms_empty() {
+        let generator = QaGenerator::new();
+        let primitives: Vec<Primitive> = vec![];
+
+        let rooms = generator.extract_rooms(&primitives);
+
+        assert!(rooms.is_empty());
+    }
+
+    #[test]
+    fn test_find_outer_boundary() {
+        let generator = QaGenerator::new();
+        let large =
+            Polygon::from_coords(vec![[0.0, 0.0], [200.0, 0.0], [200.0, 200.0], [0.0, 200.0]]);
+        let small =
+            Polygon::from_coords(vec![[10.0, 10.0], [50.0, 10.0], [50.0, 50.0], [10.0, 50.0]]);
+        let primitives = vec![Primitive::Polygon(large), Primitive::Polygon(small)];
+
+        let boundary = generator.find_outer_boundary(&primitives);
+
+        assert!(boundary.is_some());
+        assert!(boundary.unwrap().area() > 10000.0);
+    }
+
+    #[test]
+    fn test_find_outer_boundary_empty() {
+        let generator = QaGenerator::new();
+        let primitives: Vec<Primitive> = vec![];
+
+        let boundary = generator.find_outer_boundary(&primitives);
+
+        assert!(boundary.is_none());
+    }
+
+    #[test]
+    fn test_calculate_bbox() {
+        let generator = QaGenerator::new();
+        let polygon = create_test_polygon();
+
+        let bbox = generator.calculate_bbox(&polygon);
+
+        assert_eq!(bbox.0, 0.0);
+        assert_eq!(bbox.1, 0.0);
+        assert_eq!(bbox.2, 100.0);
+        assert_eq!(bbox.3, 100.0);
+    }
+
+    #[test]
+    fn test_calculate_centroid() {
+        let generator = QaGenerator::new();
+        let polygon = create_test_polygon();
+
+        let centroid = generator.calculate_centroid(&polygon);
+
+        assert!(centroid.is_some());
+        let c = centroid.unwrap();
+        assert!((c.x - 50.0).abs() < 0.01);
+        assert!((c.y - 50.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_calculate_centroid_empty() {
+        let generator = QaGenerator::new();
+        let polygon = Polygon::from_coords(vec![]);
+
+        let centroid = generator.calculate_centroid(&polygon);
+
+        assert!(centroid.is_none());
+    }
+
+    #[test]
+    fn test_count_doors() {
+        let generator = QaGenerator::new();
+        let primitives = vec![
+            Primitive::Text {
+                content: "门".to_string(),
+                position: Point { x: 0.0, y: 0.0 },
+                height: 10.0,
+            },
+            Primitive::Text {
+                content: "D".to_string(),
+                position: Point { x: 50.0, y: 0.0 },
+                height: 10.0,
+            },
+            Primitive::Polygon(create_test_polygon()),
+        ];
+
+        let count = generator.count_doors(&primitives);
+
+        assert_eq!(count, 2);
+    }
+
+    #[test]
+    fn test_count_doors_none() {
+        let generator = QaGenerator::new();
+        let primitives = vec![Primitive::Polygon(create_test_polygon())];
+
+        let count = generator.count_doors(&primitives);
+
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_generate_area_thinking() {
+        let generator = QaGenerator::new();
+        let room = create_test_room();
+
+        let thinking = generator.generate_area_thinking(&room);
+
+        assert!(thinking.contains("鞋带公式"));
+        assert!(thinking.contains("10000.00"));
+    }
+
+    #[test]
+    fn test_qa_pair_clone() {
+        let qa = QAPair {
+            question: "问题".to_string(),
+            answer: "答案".to_string(),
+            thinking: Some("思考".to_string()),
+            question_type: "area".to_string(),
+        };
+
+        let cloned = qa.clone();
+        assert_eq!(cloned.question, qa.question);
+        assert_eq!(cloned.question_type, qa.question_type);
+    }
+
+    #[test]
+    fn test_qa_pair_debug() {
+        let qa = QAPair {
+            question: "问题".to_string(),
+            answer: "答案".to_string(),
+            thinking: None,
+            question_type: "count".to_string(),
+        };
+
+        let debug_str = format!("{:?}", qa);
+        assert!(debug_str.contains("QAPair"));
+    }
+
+    #[test]
+    fn test_qa_tools_generate_qa_all_types() {
+        let tools = QaTools;
+        let primitives = vec![Primitive::Polygon(create_test_polygon())];
+
+        let qa_pairs = tools.generate_qa(primitives, "".to_string());
+
+        assert!(!qa_pairs.is_empty());
+    }
+
+    #[test]
+    fn test_qa_tools_generate_qa_filter_type() {
+        let tools = QaTools;
+        let primitives = vec![Primitive::Polygon(create_test_polygon())];
+
+        let qa_pairs = tools.generate_qa(primitives, "area".to_string());
+
+        assert!(qa_pairs.iter().all(|qa| qa.question_type == "area"));
+    }
+
+    #[test]
+    fn test_qa_tools_generate_area_qa() {
+        let tools = QaTools;
+        let primitives = vec![Primitive::Polygon(create_test_polygon())];
+
+        let qa_pairs = tools.generate_area_qa(primitives);
+
+        assert!(!qa_pairs.is_empty());
+    }
+
+    #[test]
+    fn test_qa_tools_generate_count_qa() {
+        let tools = QaTools;
+        let primitives = vec![Primitive::Polygon(create_test_polygon())];
+
+        let qa_pairs = tools.generate_count_qa(primitives);
+
+        assert!(!qa_pairs.is_empty());
+        assert!(qa_pairs.iter().any(|qa| qa.question.contains("房间")));
     }
 }

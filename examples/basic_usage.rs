@@ -19,7 +19,7 @@ fn main() -> anyhow::Result<()> {
 
     // 2. 使用测量工具
     println!("\n2. 使用测量工具");
-    let measurer = GeometryMeasurer;
+    let mut measurer = GeometryMeasurer::new();
 
     let length = measurer.measure_length([0.0, 0.0], [3.0, 4.0]);
     println!("   线段长度 (0,0) 到 (3,4): {}", length);

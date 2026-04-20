@@ -344,5 +344,200 @@ mod tests {
 
         assert_eq!(info["name"], "cad_analysis_pipeline");
         assert_eq!(info["tools"].as_array().unwrap().len(), 3);
+        assert!(info["description"].as_str().unwrap().contains("CAD"));
+        assert!(!info["pipeline_steps"].as_array().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_spatial_analysis_result_clone() {
+        let result = SpatialAnalysisResult {
+            primitive_count: 10,
+            relation_count: 5,
+            room_count: Some(2),
+            total_area: Some(100.0),
+            tool_call_chain: serde_json::json!({"tools": []}),
+            prompt: "测试提示词".to_string(),
+        };
+
+        let cloned = result.clone();
+        assert_eq!(cloned.primitive_count, result.primitive_count);
+        assert_eq!(cloned.room_count, result.room_count);
+    }
+
+    #[test]
+    fn test_spatial_analysis_result_debug() {
+        let result = SpatialAnalysisResult {
+            primitive_count: 0,
+            relation_count: 0,
+            room_count: None,
+            total_area: None,
+            tool_call_chain: serde_json::json!(null),
+            prompt: String::new(),
+        };
+
+        let debug_str = format!("{:?}", result);
+        assert!(debug_str.contains("SpatialAnalysisResult"));
+    }
+
+    #[test]
+    fn test_constraint_verification_result_clone() {
+        let result = ConstraintVerificationResult {
+            is_valid: true,
+            overall_score: 0.9,
+            conflict_count: 0,
+            conflicts: vec![],
+        };
+
+        let cloned = result.clone();
+        assert_eq!(cloned.is_valid, result.is_valid);
+        assert!((cloned.overall_score - result.overall_score).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_constraint_verification_result_debug() {
+        let result = ConstraintVerificationResult {
+            is_valid: false,
+            overall_score: 0.5,
+            conflict_count: 1,
+            conflicts: vec![serde_json::json!({"type": "test"})],
+        };
+
+        let debug_str = format!("{:?}", result);
+        assert!(debug_str.contains("ConstraintVerificationResult"));
+    }
+
+    #[test]
+    fn test_geo_cot_data_clone() {
+        let data = GeoCotData {
+            perception: "感知".to_string(),
+            reasoning: "推理".to_string(),
+            summary: "总结".to_string(),
+            thinking: "思维".to_string(),
+            answer: "答案".to_string(),
+        };
+
+        let cloned = data.clone();
+        assert_eq!(cloned.perception, data.perception);
+        assert_eq!(cloned.answer, data.answer);
+    }
+
+    #[test]
+    fn test_geo_cot_data_debug() {
+        let data = GeoCotData {
+            perception: String::new(),
+            reasoning: String::new(),
+            summary: String::new(),
+            thinking: String::new(),
+            answer: String::new(),
+        };
+
+        let debug_str = format!("{:?}", data);
+        assert!(debug_str.contains("GeoCotData"));
+    }
+
+    #[test]
+    fn test_analyze_layout_invalid_svg() {
+        let tools = AnalysisTools;
+        // 使用无效的 SVG 内容
+        let result = tools.analyze_layout(
+            "invalid_svg_content".to_string(),
+            "测试任务".to_string(),
+            None,
+        );
+
+        // 应该返回错误（因为没有 API Key 或无效 SVG）
+        assert!(!result["success"].as_bool().unwrap_or(true) || result["error"].as_str().is_some());
+    }
+
+    #[test]
+    fn test_analyze_layout_with_config() {
+        let tools = AnalysisTools;
+        let config_json = r#"{"enable_parallel": false}"#;
+
+        let result = tools.analyze_layout(
+            "<svg></svg>".to_string(),
+            "测试".to_string(),
+            Some(config_json.to_string()),
+        );
+
+        // 配置应该被解析
+        assert!(result.is_object());
+    }
+
+    #[test]
+    fn test_verify_design_invalid_constraints() {
+        let tools = AnalysisTools;
+        let invalid_constraints = serde_json::json!({"invalid": "data"});
+
+        let result = tools.verify_design("<svg></svg>".to_string(), invalid_constraints);
+
+        assert!(!result["success"].as_bool().unwrap_or(false));
+        assert!(result["error"].as_str().is_some());
+    }
+
+    #[test]
+    fn test_verify_design_invalid_svg() {
+        let tools = AnalysisTools;
+        let constraints = serde_json::json!([
+            {"relation_type": "parallel", "primitive1_id": "a", "primitive2_id": "b"}
+        ]);
+
+        let result = tools.verify_design("invalid_svg".to_string(), constraints);
+
+        assert!(!result["success"].as_bool().unwrap_or(false));
+    }
+
+    #[test]
+    fn test_generate_cot_invalid_svg() {
+        let tools = AnalysisTools;
+
+        let result = tools.generate_cot("invalid_svg".to_string(), "测试任务".to_string());
+
+        assert!(!result["success"].as_bool().unwrap_or(false));
+        assert!(result["error"].as_str().is_some());
+    }
+
+    #[test]
+    fn test_generate_cot_basic() {
+        let tools = AnalysisTools;
+        let svg = r#"<svg width="100" height="100">
+            <rect x="0" y="0" width="50" height="50"/>
+        </svg>"#;
+
+        let result = tools.generate_cot(svg.to_string(), "计算面积".to_string());
+
+        // 应该成功生成 CoT 数据
+        assert!(result["success"].as_bool().unwrap_or(false));
+        assert!(result["cot_data"].is_object());
+        assert!(
+            result["statistics"]["primitive_count"]
+                .as_u64()
+                .unwrap_or(0)
+                > 0
+        );
+    }
+
+    #[test]
+    fn test_layout_result_to_json() {
+        let tools = AnalysisTools;
+        // 这个方法是私有的，通过 analyze_layout 间接测试
+        let result = tools.analyze_layout("<svg></svg>".to_string(), "测试".to_string(), None);
+
+        assert!(result.is_object());
+    }
+
+    #[test]
+    fn test_analysis_tools_default() {
+        let tools = AnalysisTools;
+        let info = tools.get_analysis_info();
+        assert!(info["name"].as_str().is_some());
+    }
+
+    #[test]
+    fn test_analysis_tools_clone() {
+        let tools = AnalysisTools;
+        let cloned = tools.clone();
+        let info = cloned.get_analysis_info();
+        assert_eq!(info["name"], "cad_analysis_pipeline");
     }
 }

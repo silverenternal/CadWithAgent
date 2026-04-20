@@ -32,7 +32,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 
-/// CadAgent 配置结构
+/// `CadAgent` 配置结构
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CadConfig {
     /// 项目信息
@@ -213,7 +213,7 @@ pub struct ModelSettings {
     /// 最大分辨率
     #[serde(default = "default_max_resolution")]
     pub max_resolution: u32,
-    /// 是否启用 CoT
+    /// 是否启用 `CoT`
     #[serde(default = "default_enable_cot")]
     pub enable_cot: bool,
     /// 是否启用工具调用
@@ -238,10 +238,10 @@ impl CadConfig {
     /// 从文件加载配置
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self, ConfigError> {
         let content = fs::read_to_string(path.as_ref())
-            .map_err(|e| ConfigError::IoError(format!("读取配置文件失败：{}", e)))?;
+            .map_err(|e| ConfigError::IoError(format!("读取配置文件失败：{e}")))?;
 
         let config: CadConfig = serde_json::from_str(&content)
-            .map_err(|e| ConfigError::JsonError(format!("解析配置文件失败：{}", e)))?;
+            .map_err(|e| ConfigError::JsonError(format!("解析配置文件失败：{e}")))?;
 
         Ok(config)
     }
@@ -249,7 +249,7 @@ impl CadConfig {
     /// 从 JSON 字符串加载配置
     pub fn from_json(json_str: &str) -> Result<Self, ConfigError> {
         let config: CadConfig = serde_json::from_str(json_str)
-            .map_err(|e| ConfigError::JsonError(format!("解析 JSON 失败：{}", e)))?;
+            .map_err(|e| ConfigError::JsonError(format!("解析 JSON 失败：{e}")))?;
 
         Ok(config)
     }
@@ -259,13 +259,13 @@ impl CadConfig {
         path: impl AsRef<Path>,
     ) -> Result<(Self, ValidationResult), ConfigError> {
         let content = fs::read_to_string(path.as_ref())
-            .map_err(|e| ConfigError::IoError(format!("读取配置文件失败：{}", e)))?;
+            .map_err(|e| ConfigError::IoError(format!("读取配置文件失败：{e}")))?;
 
         // 先验证
         let validator = ConfigValidator::new();
         let validation_result = validator
             .validate_json(&content)
-            .map_err(|e| ConfigError::ValidationError(format!("验证失败：{}", e)))?;
+            .map_err(|e| ConfigError::ValidationError(format!("验证失败：{e}")))?;
 
         if !validation_result.is_valid {
             return Err(ConfigError::ValidationError(format!(
@@ -276,7 +276,7 @@ impl CadConfig {
 
         // 再解析
         let config: CadConfig = serde_json::from_str(&content)
-            .map_err(|e| ConfigError::JsonError(format!("解析配置文件失败：{}", e)))?;
+            .map_err(|e| ConfigError::JsonError(format!("解析配置文件失败：{e}")))?;
 
         Ok((config, validation_result))
     }

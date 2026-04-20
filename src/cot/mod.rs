@@ -5,7 +5,9 @@
 pub mod generator;
 pub mod qa;
 pub mod templates;
+pub mod validator;
 
 pub use generator::*;
 pub use qa::*;
 pub use templates::*;
+pub use validator::*;

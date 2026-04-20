@@ -4,6 +4,8 @@
 
 pub mod serializer;
 pub mod vlm_client;
+pub mod zaza_client;
 
 pub use serializer::*;
 pub use vlm_client::*;
+pub use zaza_client::*;

@@ -5,12 +5,13 @@
 use cadagent::cad_extractor::CadPrimitiveExtractor;
 use cadagent::cad_reasoning::GeometricRelationReasoner;
 use cadagent::prelude::*;
-use std::path::PathBuf;
 
 /// 获取测试夹具目录
-fn fixtures_dir() -> PathBuf {
+fn fixtures_dir() -> std::path::PathBuf {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
-    PathBuf::from(manifest_dir).join("tests").join("fixtures")
+    std::path::PathBuf::from(manifest_dir)
+        .join("tests")
+        .join("fixtures")
 }
 
 #[test]
@@ -80,6 +81,13 @@ fn test_geometric_relations_detection() {
 
 #[test]
 fn test_coordinate_normalization() {
+    // 创建大坐标范围的基元（仅用于说明，实际测试使用 extract_from_svg_string）
+    let _primitives: [Primitive; 3] = [
+        Primitive::Point(Point::new(0.0, 0.0)),
+        Primitive::Point(Point::new(1000.0, 1000.0)),
+        Primitive::Line(Line::from_coords([0.0, 0.0], [1000.0, 1000.0])),
+    ];
+
     // 使用公共 API 测试归一化功能
     let mut config = cadagent::cad_extractor::ExtractorConfig::default();
     config.geometry.normalize_range = [0.0, 100.0];

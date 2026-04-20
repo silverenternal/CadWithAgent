@@ -4,6 +4,7 @@
 
 use cadagent::prelude::*;
 use cadagent::tools::ToolRegistry;
+use cadagent::web_server::{ServerConfig, start_server};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
@@ -99,6 +100,17 @@ enum Commands {
         /// 配置文件路径
         #[arg(short, long, default_value = "config/default.json")]
         config: PathBuf,
+    },
+
+    /// 启动 Web API 服务器
+    Serve {
+        /// 服务器端口
+        #[arg(short, long, default_value = "8080")]
+        port: u16,
+
+        /// 服务器主机
+        #[arg(short, long, default_value = "127.0.0.1")]
+        host: String,
     },
 }
 
@@ -268,6 +280,29 @@ fn main() -> anyhow::Result<()> {
                     std::process::exit(1);
                 }
             }
+        }
+
+        Commands::Serve { port, host } => {
+            let config = ServerConfig {
+                host,
+                port,
+                upload_dir: PathBuf::from("./uploads"),
+                export_dir: PathBuf::from("./exports"),
+            };
+
+            println!("🚀 Starting CadAgent Web API Server...");
+            println!("📍 Listening on http://{}:{}", config.host, config.port);
+            println!("📁 Upload directory: {:?}", config.upload_dir);
+            println!("📁 Export directory: {:?}", config.export_dir);
+            println!();
+            println!("Press Ctrl+C to stop the server");
+            println!();
+
+            // Start the server (this will block)
+            tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()?
+                .block_on(start_server(config))?;
         }
     }
 

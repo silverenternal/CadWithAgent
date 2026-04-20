@@ -1,4 +1,8 @@
 //! SVG 解析器
+#![allow(clippy::cast_possible_wrap)]
+#![allow(clippy::cast_sign_loss)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::cast_precision_loss)]
 //!
 //! 解析 SVG 文件，提取几何图元并转换为结构化数据
 //!
@@ -12,8 +16,11 @@
 //!
 //! 解析文件时会进行路径遍历检查，防止读取工作目录外的文件
 
-use crate::geometry::{Circle, Line, Point, Polygon, Primitive, Rect};
+use crate::geometry::{
+    BezierCurve, Circle, EllipticalArc, Line, Point, Polygon, Primitive, QuadraticBezier, Rect,
+};
 use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
 use std::fs;
 use std::path::Path;
 
@@ -57,16 +64,18 @@ impl SvgParser {
     /// 解析 SVG 字符串
     pub fn parse_string(content: &str) -> Result<SvgResult, SvgError> {
         let doc = roxmltree::Document::parse(content)
-            .map_err(|e| SvgError::ParseError(format!("XML 解析失败：{}", e)))?;
+            .map_err(|e| SvgError::ParseError(format!("XML 解析失败：{e}")))?;
 
-        let mut primitives = Vec::new();
+        // 预分配容量：基于 SVG 内容长度估算（假设每个图元约 50-100 字符）
+        let estimated_primitives = content.len() / 75;
+        let mut primitives = Vec::with_capacity(estimated_primitives.min(200));
 
         // 获取根节点
         let root = doc.root_element();
 
         // 解析根节点属性
-        let width = root.attribute("width").unwrap_or("").to_string();
-        let height = root.attribute("height").unwrap_or("").to_string();
+        let width = root.attribute("width").unwrap_or("0").to_string();
+        let height = root.attribute("height").unwrap_or("0").to_string();
         let view_box = root.attribute("viewBox").map(String::from);
 
         // 遍历所有子节点
@@ -187,7 +196,7 @@ fn parse_ellipse_as_circle(node: &roxmltree::Node) -> Option<Circle> {
     let ry = parse_float_attr(node, "ry")?;
 
     // 使用平均半径
-    let r = (rx + ry) / 2.0;
+    let r = f64::midpoint(rx, ry);
 
     if r <= 0.0 {
         return None;
@@ -209,18 +218,18 @@ fn parse_polygon_node(node: &roxmltree::Node) -> Option<Polygon> {
 fn parse_points_attribute(node: &roxmltree::Node) -> Option<Vec<Point>> {
     let points_str = node.attribute("points")?;
 
-    let points = points_str
-        .split_whitespace()
-        .filter_map(|pair| {
-            let coords: Vec<&str> = pair.split(',').collect();
-            if coords.len() == 2 {
-                if let (Ok(x), Ok(y)) = (coords[0].trim().parse(), coords[1].trim().parse()) {
-                    return Some(Point::new(x, y));
-                }
+    // 预分配容量：基于字符串长度估算（假设每个点约 10-15 字符）
+    let estimated_points = points_str.len() / 12;
+    let mut points = Vec::with_capacity(estimated_points.min(100));
+
+    for pair in points_str.split_whitespace() {
+        let coords: SmallVec<[&str; 2]> = pair.split(',').collect();
+        if coords.len() == 2 {
+            if let (Ok(x), Ok(y)) = (coords[0].trim().parse(), coords[1].trim().parse()) {
+                points.push(Point::new(x, y));
             }
-            None
-        })
-        .collect::<Vec<_>>();
+        }
+    }
 
     if points.is_empty() {
         None
@@ -241,10 +250,15 @@ fn parse_path_node(node: &roxmltree::Node) -> Vec<Primitive> {
 
 /// 解析 path 数据
 fn parse_path_data(d: &str) -> Vec<Primitive> {
-    let mut primitives = Vec::new();
+    // 预分配容量：基于路径字符串长度估算（假设每个命令约 10-20 字符）
+    let estimated_primitives = d.len() / 15;
+    let mut primitives = Vec::with_capacity(estimated_primitives.min(100));
     let mut current_point = Point::origin();
     let mut start_point = Point::origin();
-    let mut path_points = Vec::new();
+    let mut path_points = Vec::with_capacity(8);
+
+    // 用于平滑曲线的上一个控制点
+    let mut prev_control_point: Option<Point> = None;
 
     let mut chars = d.chars().peekable();
 
@@ -256,6 +270,7 @@ fn parse_path_data(d: &str) -> Vec<Primitive> {
                     current_point = Point::new(x, y);
                     start_point = current_point;
                     path_points = vec![current_point];
+                    prev_control_point = None;
                 }
             }
             'L' | 'l' => {
@@ -288,6 +303,157 @@ fn parse_path_data(d: &str) -> Vec<Primitive> {
                     current_point = Point::new(current_point.x, new_y);
                 }
             }
+            'C' | 'c' => {
+                // 三次贝塞尔曲线命令
+                while let Some((cp1x, cp1y)) = parse_coord(&mut chars, cmd.is_lowercase()) {
+                    if let Some((cp2x, cp2y)) = parse_coord(&mut chars, false) {
+                        if let Some((endx, endy)) = parse_coord(&mut chars, false) {
+                            let cp1 = Point::new(cp1x, cp1y);
+                            let cp2 = Point::new(cp2x, cp2y);
+                            let end = Point::new(endx, endy);
+
+                            primitives.push(Primitive::BezierCurve(BezierCurve::new(
+                                current_point,
+                                cp1,
+                                cp2,
+                                end,
+                            )));
+
+                            current_point = end;
+                            prev_control_point = Some(cp2);
+                            path_points.clear();
+                        } else {
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+            }
+            'S' | 's' => {
+                // 平滑三次贝塞尔曲线命令
+                while let Some((cp2x, cp2y)) = parse_coord(&mut chars, cmd.is_lowercase()) {
+                    if let Some((endx, endy)) = parse_coord(&mut chars, false) {
+                        // 反射上一个控制点
+                        let cp1 = if let Some(prev_cp) = prev_control_point {
+                            Point::new(
+                                current_point.x + (current_point.x - prev_cp.x),
+                                current_point.y + (current_point.y - prev_cp.y),
+                            )
+                        } else {
+                            current_point
+                        };
+
+                        let cp2 = Point::new(cp2x, cp2y);
+                        let end = Point::new(endx, endy);
+
+                        primitives.push(Primitive::BezierCurve(BezierCurve::new(
+                            current_point,
+                            cp1,
+                            cp2,
+                            end,
+                        )));
+
+                        current_point = end;
+                        prev_control_point = Some(cp2);
+                        path_points.clear();
+                    } else {
+                        break;
+                    }
+                }
+            }
+            'Q' | 'q' => {
+                // 二次贝塞尔曲线命令
+                while let Some((cpx, cpy)) = parse_coord(&mut chars, cmd.is_lowercase()) {
+                    if let Some((endx, endy)) = parse_coord(&mut chars, false) {
+                        let control = Point::new(cpx, cpy);
+                        let end = Point::new(endx, endy);
+
+                        primitives.push(Primitive::QuadraticBezier(QuadraticBezier::new(
+                            current_point,
+                            control,
+                            end,
+                        )));
+
+                        current_point = end;
+                        prev_control_point = Some(control);
+                        path_points.clear();
+                    } else {
+                        break;
+                    }
+                }
+            }
+            'T' | 't' => {
+                // 平滑二次贝塞尔曲线命令
+                while let Some((endx, endy)) = parse_coord(&mut chars, cmd.is_lowercase()) {
+                    // 反射上一个控制点
+                    let control = if let Some(prev_cp) = prev_control_point {
+                        Point::new(
+                            current_point.x + (current_point.x - prev_cp.x),
+                            current_point.y + (current_point.y - prev_cp.y),
+                        )
+                    } else {
+                        current_point
+                    };
+
+                    let end = Point::new(endx, endy);
+
+                    primitives.push(Primitive::QuadraticBezier(QuadraticBezier::new(
+                        current_point,
+                        control,
+                        end,
+                    )));
+
+                    current_point = end;
+                    prev_control_point = Some(control);
+                    path_points.clear();
+                }
+            }
+            'A' | 'a' => {
+                // 椭圆弧命令
+                while let Some(rx) = parse_number(&mut chars) {
+                    if let Some(ry) = parse_number(&mut chars) {
+                        if let Some(x_axis_rotation) = parse_number(&mut chars) {
+                            if let Some(large_arc_flag) = parse_number(&mut chars) {
+                                if let Some(sweep_flag) = parse_number(&mut chars) {
+                                    if let Some((endx, endy)) =
+                                        parse_coord(&mut chars, cmd.is_lowercase())
+                                    {
+                                        let large_arc = large_arc_flag != 0.0;
+                                        let sweep = sweep_flag != 0.0;
+
+                                        primitives.push(Primitive::EllipticalArc(
+                                            EllipticalArc::new(
+                                                current_point,
+                                                rx.abs(),
+                                                ry.abs(),
+                                                x_axis_rotation.to_radians(),
+                                                large_arc,
+                                                sweep,
+                                                Point::new(endx, endy),
+                                            ),
+                                        ));
+
+                                        current_point = Point::new(endx, endy);
+                                        prev_control_point = None;
+                                        path_points.clear();
+                                    } else {
+                                        break;
+                                    }
+                                } else {
+                                    break;
+                                }
+                            } else {
+                                break;
+                            }
+                        } else {
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+            }
             'Z' | 'z' => {
                 // 闭合命令
                 if path_points.len() >= 3 {
@@ -295,8 +461,9 @@ fn parse_path_data(d: &str) -> Vec<Primitive> {
                 }
                 path_points.clear();
                 current_point = start_point;
+                prev_control_point = None;
             }
-            // 忽略其他命令：C, S, Q, T, A 等曲线命令
+            // 忽略其他命令
             _ => {
                 // 跳过命令参数
                 while let Some(&c) = chars.peek() {
@@ -475,7 +642,7 @@ pub fn render_svg_to_png(
             std::fs::create_dir_all(parent).map_err(|e| {
                 SvgRenderError::IoError(std::io::Error::new(
                     std::io::ErrorKind::PermissionDenied,
-                    format!("无法创建输出目录：{}", e),
+                    format!("无法创建输出目录：{e}"),
                 ))
             })?;
         }
@@ -485,7 +652,7 @@ pub fn render_svg_to_png(
     let svg_content = std::fs::read_to_string(&canonical_svg_path).map_err(|e| {
         SvgRenderError::IoError(std::io::Error::new(
             std::io::ErrorKind::PermissionDenied,
-            format!("无法读取 SVG 文件：{}", e),
+            format!("无法读取 SVG 文件：{e}"),
         ))
     })?;
 
@@ -494,7 +661,7 @@ pub fn render_svg_to_png(
 
     // 解析 SVG
     let tree = usvg::Tree::from_str(&svg_content, &usvg::Options::default())
-        .map_err(|e| SvgRenderError::ParseError(format!("SVG 解析失败：{}", e)))?;
+        .map_err(|e| SvgRenderError::ParseError(format!("SVG 解析失败：{e}")))?;
 
     // 计算渲染尺寸
     let size = tree.size();
@@ -514,7 +681,7 @@ pub fn render_svg_to_png(
     // 保存为 PNG
     pixmap
         .save_png(output_path)
-        .map_err(|e| SvgRenderError::PngError(format!("PNG 保存失败：{}", e)))?;
+        .map_err(|e| SvgRenderError::PngError(format!("PNG 保存失败：{e}")))?;
 
     Ok(())
 }
@@ -539,7 +706,7 @@ pub fn render_svg_string_to_png(
 
     // 解析 SVG
     let tree = usvg::Tree::from_str(svg_content, &usvg::Options::default())
-        .map_err(|e| SvgRenderError::ParseError(format!("SVG 解析失败：{}", e)))?;
+        .map_err(|e| SvgRenderError::ParseError(format!("SVG 解析失败：{e}")))?;
 
     // 计算渲染尺寸
     let size = tree.size();
@@ -559,7 +726,7 @@ pub fn render_svg_string_to_png(
     // 编码为 PNG 数据
     let png_data = pixmap
         .encode_png()
-        .map_err(|e| SvgRenderError::PngError(format!("PNG 编码失败：{}", e)))?;
+        .map_err(|e| SvgRenderError::PngError(format!("PNG 编码失败：{e}")))?;
 
     Ok(png_data)
 }
@@ -618,8 +785,7 @@ fn validate_svg_security(svg_content: &str) -> Result<(), SvgRenderError> {
     let entity_ref_count = svg_content.matches("&").count();
     if entity_ref_count > 1000 {
         return Err(SvgRenderError::Security(format!(
-            "SVG 安全检测：实体引用数量过多（{}），可能存在实体扩展攻击",
-            entity_ref_count
+            "SVG 安全检测：实体引用数量过多（{entity_ref_count}），可能存在实体扩展攻击"
         )));
     }
 
@@ -811,5 +977,585 @@ mod tests {
 
         let result = validate_svg_security(valid_svg);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_file_not_found() {
+        let result = SvgParser::parse("/nonexistent/path/file.svg");
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            SvgError::FileNotFound(msg) => assert!(msg.contains("文件不存在")),
+            _ => panic!("期望 FileNotFound 错误"),
+        }
+    }
+
+    #[test]
+    fn test_parse_empty_svg() {
+        let svg = r#"<svg></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 0);
+        // Empty SVG defaults to "0" for dimensions
+        assert_eq!(result.metadata.width, "0");
+        assert_eq!(result.metadata.height, "0");
+        assert_eq!(result.metadata.view_box, None);
+    }
+
+    #[test]
+    fn test_parse_ellipse() {
+        let svg = r#"<svg><ellipse cx="50" cy="50" rx="30" ry="20" /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 1);
+        match &result.primitives[0] {
+            Primitive::Circle(circle) => {
+                // 平均半径 (30+20)/2 = 25
+                assert!((circle.center.x - 50.0).abs() < 0.001);
+                assert!((circle.center.y - 50.0).abs() < 0.001);
+                assert!((circle.radius - 25.0).abs() < 0.001);
+            }
+            _ => panic!("期望圆形"),
+        }
+    }
+
+    #[test]
+    fn test_parse_ellipse_invalid_radius() {
+        let svg = r#"<svg><ellipse cx="50" cy="50" rx="0" ry="0" /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_circle_invalid_radius() {
+        let svg = r#"<svg><circle cx="50" cy="50" r="0" /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 0);
+
+        let svg = r#"<svg><circle cx="50" cy="50" r="-5" /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_rect_negative_size() {
+        let svg = r#"<svg><rect x="100" y="100" width="-50" height="-30" /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 1);
+        match &result.primitives[0] {
+            Primitive::Rect(rect) => {
+                assert!((rect.min.x - 100.0).abs() < 0.001);
+                assert!((rect.min.y - 100.0).abs() < 0.001);
+                assert!((rect.max.x - 150.0).abs() < 0.001);
+                assert!((rect.max.y - 130.0).abs() < 0.001);
+            }
+            _ => panic!("期望矩形"),
+        }
+    }
+
+    #[test]
+    fn test_parse_polyline() {
+        let svg = r#"<svg><polyline points="0,0 50,50 100,0" /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 1);
+        match &result.primitives[0] {
+            Primitive::Polyline { points, closed } => {
+                assert_eq!(points.len(), 3);
+                assert!(!closed);
+            }
+            _ => panic!("期望折线"),
+        }
+    }
+
+    #[test]
+    fn test_parse_polyline_insufficient_points() {
+        let svg = r#"<svg><polyline points="0,0" /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_polygon_insufficient_points() {
+        let svg = r#"<svg><polygon points="0,0 50,50" /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_text() {
+        let svg = r#"<svg><text x="10" y="20" font-size="24">Hello</text></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 1);
+        match &result.primitives[0] {
+            Primitive::Text {
+                content,
+                position,
+                height,
+            } => {
+                assert_eq!(content, "Hello");
+                assert!((position.x - 10.0).abs() < 0.001);
+                assert!((position.y - 20.0).abs() < 0.001);
+                assert!((height - 24.0).abs() < 0.001);
+            }
+            _ => panic!("期望文本"),
+        }
+    }
+
+    #[test]
+    fn test_parse_text_empty() {
+        let svg = r#"<svg><text x="10" y="20"></text></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_text_default_font_size() {
+        let svg = r#"<svg><text x="10" y="20">Test</text></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        match &result.primitives[0] {
+            Primitive::Text { height, .. } => {
+                assert!((height - 100.0).abs() < 0.001);
+            }
+            _ => panic!("期望文本"),
+        }
+    }
+
+    #[test]
+    fn test_parse_path_multiple_commands() {
+        let svg = r#"<svg><path d="M 0 0 L 50 50 L 100 0 L 0 0" /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 1);
+        match &result.primitives[0] {
+            Primitive::Polygon(poly) => {
+                assert_eq!(poly.vertices.len(), 4);
+            }
+            _ => panic!("期望多边形"),
+        }
+    }
+
+    #[test]
+    fn test_parse_path_horizontal_vertical() {
+        let svg = r#"<svg><path d="M 0 0 H 50 V 30 Z" /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 1);
+        match &result.primitives[0] {
+            Primitive::Polygon(poly) => {
+                assert_eq!(poly.vertices.len(), 3);
+            }
+            _ => panic!("期望多边形"),
+        }
+    }
+
+    #[test]
+    fn test_parse_path_relative_commands() {
+        let svg = r#"<svg><path d="m 0 0 l 10 10 l 20 0 Z" /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_path_empty() {
+        let svg = r#"<svg><path d="" /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_path_no_d_attribute() {
+        let svg = r#"<svg><path /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_ignored_elements() {
+        let svg = r##"<svg>
+            <g><line x1="0" y1="0" x2="10" y2="10" /></g>
+            <defs><circle cx="0" cy="0" r="5" /></defs>
+            <symbol><rect x="0" y="0" width="10" height="10" /></symbol>
+            <use href="#symbol1" />
+            <image href="test.png" />
+        </svg>"##;
+        let result = SvgParser::parse_string(svg).unwrap();
+        // descendants() 会遍历所有后代节点
+        // g 内的 line、defs 内的 circle、symbol 内的 rect 都会被解析
+        // use 和 image 元素本身被忽略
+        assert_eq!(result.primitives.len(), 3);
+    }
+
+    #[test]
+    fn test_parse_points_malformed() {
+        let svg = r#"<svg><polygon points="0,0 invalid 50,50" /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        // "invalid" 无法解析，只有 "0,0" 和 "50,50" 被解析，但 2 个点不足以构成多边形
+        assert_eq!(result.primitives.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_points_empty() {
+        let svg = r#"<svg><polygon points="" /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 0);
+    }
+
+    #[test]
+    fn test_svg_security_data_url() {
+        let malicious_svg = r#"<svg>
+            <image href="data:text/html,<script>alert('XSS')</script>" />
+        </svg>"#;
+
+        let result = validate_svg_security(malicious_svg);
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("data:text/html") || err_msg.contains("SVG 安全检测"));
+    }
+
+    #[test]
+    fn test_svg_security_entity_ref_count() {
+        let svg_with_many_refs = format!("<svg>{}</svg>", "&amp;".repeat(1001));
+
+        let result = validate_svg_security(&svg_with_many_refs);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("实体引用数量过多"));
+    }
+
+    #[test]
+    fn test_render_svg_string_invalid_svg() {
+        let invalid_svg = r#"<svg><invalid_tag></svg>"#;
+        let result = render_svg_string_to_png(invalid_svg, 96);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_render_svg_string_empty_size() {
+        let svg = r#"<svg width="0" height="0"></svg>"#;
+        let result = render_svg_string_to_png(svg, 96);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_render_svg_to_png_output_directory_creation() {
+        let svg_content = r#"<svg width="50" height="50" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="25" cy="25" r="20" fill="green" />
+        </svg>"#;
+
+        let svg_path = std::env::temp_dir().join("test_svg_output.svg");
+        std::fs::write(&svg_path, svg_content).unwrap();
+
+        let output_path = std::env::temp_dir().join("subdir/nested/test_output.png");
+
+        let result = render_svg_to_png(&svg_path, &output_path, 96);
+
+        let _ = std::fs::remove_file(&svg_path);
+        let _ = std::fs::remove_file(&output_path);
+        let _ = std::fs::remove_dir(std::env::temp_dir().join("subdir/nested"));
+        let _ = std::fs::remove_dir(std::env::temp_dir().join("subdir"));
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_line_missing_attributes() {
+        let svg = r#"<svg><line x1="0" y1="0" /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_rect_missing_attributes() {
+        let svg = r#"<svg><rect x="0" y="0" width="50" /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_circle_missing_attributes() {
+        let svg = r#"<svg><circle cx="50" cy="50" /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_ellipse_missing_attributes() {
+        let svg = r#"<svg><ellipse cx="50" cy="50" rx="30" /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_path_curve_commands() {
+        let svg = r#"<svg><path d="M 0 0 C 10 10 20 20 30 30 S 40 40 50 50 Q 60 60 70 70 T 80 80 A 10 10 0 0 1 90 90" /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        // Should parse: 1 Bezier (C), 1 smooth Bezier (S), 1 quadratic (Q), 1 smooth quadratic (T), 1 arc (A)
+        assert_eq!(result.primitives.len(), 5);
+
+        match &result.primitives[0] {
+            Primitive::BezierCurve(curve) => {
+                assert!((curve.start.x - 0.0).abs() < 0.001);
+                assert!((curve.start.y - 0.0).abs() < 0.001);
+                assert!((curve.control1.x - 10.0).abs() < 0.001);
+                assert!((curve.control1.y - 10.0).abs() < 0.001);
+                assert!((curve.control2.x - 20.0).abs() < 0.001);
+                assert!((curve.control2.y - 20.0).abs() < 0.001);
+                assert!((curve.end.x - 30.0).abs() < 0.001);
+                assert!((curve.end.y - 30.0).abs() < 0.001);
+            }
+            _ => panic!("期望贝塞尔曲线"),
+        }
+
+        match &result.primitives[1] {
+            Primitive::BezierCurve(_) => {}
+            _ => panic!("期望平滑贝塞尔曲线"),
+        }
+
+        match &result.primitives[2] {
+            Primitive::QuadraticBezier(curve) => {
+                assert!((curve.start.x - 50.0).abs() < 0.001);
+                assert!((curve.start.y - 50.0).abs() < 0.001);
+                assert!((curve.control.x - 60.0).abs() < 0.001);
+                assert!((curve.control.y - 60.0).abs() < 0.001);
+                assert!((curve.end.x - 70.0).abs() < 0.001);
+                assert!((curve.end.y - 70.0).abs() < 0.001);
+            }
+            _ => panic!("期望二次贝塞尔曲线"),
+        }
+
+        match &result.primitives[3] {
+            Primitive::QuadraticBezier(_) => {}
+            _ => panic!("期望平滑二次贝塞尔曲线"),
+        }
+
+        match &result.primitives[4] {
+            Primitive::EllipticalArc(arc) => {
+                assert!((arc.rx - 10.0).abs() < 0.001);
+                assert!((arc.ry - 10.0).abs() < 0.001);
+                assert!((arc.x_axis_rotation - 0.0).abs() < 0.001);
+                assert!(!arc.large_arc);
+                assert!(arc.sweep);
+                assert!((arc.end.x - 90.0).abs() < 0.001);
+                assert!((arc.end.y - 90.0).abs() < 0.001);
+            }
+            _ => panic!("期望椭圆弧"),
+        }
+    }
+
+    #[test]
+    fn test_parse_path_bezier_curve() {
+        let svg = r#"<svg><path d="M 0 0 C 25 0 25 100 50 100" /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 1);
+
+        match &result.primitives[0] {
+            Primitive::BezierCurve(curve) => {
+                assert_eq!(curve.start.x, 0.0);
+                assert_eq!(curve.start.y, 0.0);
+                assert_eq!(curve.control1.x, 25.0);
+                assert_eq!(curve.control1.y, 0.0);
+                assert_eq!(curve.control2.x, 25.0);
+                assert_eq!(curve.control2.y, 100.0);
+                assert_eq!(curve.end.x, 50.0);
+                assert_eq!(curve.end.y, 100.0);
+            }
+            _ => panic!("期望贝塞尔曲线"),
+        }
+    }
+
+    #[test]
+    fn test_parse_path_smooth_bezier() {
+        let svg = r#"<svg><path d="M 0 0 C 10 10 20 20 30 30 S 50 50 60 60" /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 2);
+
+        // First curve
+        match &result.primitives[0] {
+            Primitive::BezierCurve(_) => {}
+            _ => panic!("期望第一个贝塞尔曲线"),
+        }
+
+        // Smooth curve - control point 1 should be reflection of previous control point 2
+        match &result.primitives[1] {
+            Primitive::BezierCurve(curve) => {
+                assert_eq!(curve.start.x, 30.0);
+                assert_eq!(curve.start.y, 30.0);
+                // Reflected control point: (30, 30) + ((30, 30) - (20, 20)) = (40, 40)
+                assert_eq!(curve.control1.x, 40.0);
+                assert_eq!(curve.control1.y, 40.0);
+                assert_eq!(curve.control2.x, 50.0);
+                assert_eq!(curve.control2.y, 50.0);
+                assert_eq!(curve.end.x, 60.0);
+                assert_eq!(curve.end.y, 60.0);
+            }
+            _ => panic!("期望平滑贝塞尔曲线"),
+        }
+    }
+
+    #[test]
+    fn test_parse_path_quadratic_bezier() {
+        let svg = r#"<svg><path d="M 0 0 Q 50 100 100 0" /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 1);
+
+        match &result.primitives[0] {
+            Primitive::QuadraticBezier(curve) => {
+                assert_eq!(curve.start.x, 0.0);
+                assert_eq!(curve.start.y, 0.0);
+                assert_eq!(curve.control.x, 50.0);
+                assert_eq!(curve.control.y, 100.0);
+                assert_eq!(curve.end.x, 100.0);
+                assert_eq!(curve.end.y, 0.0);
+            }
+            _ => panic!("期望二次贝塞尔曲线"),
+        }
+    }
+
+    #[test]
+    fn test_parse_path_smooth_quadratic() {
+        let svg = r#"<svg><path d="M 0 0 Q 50 50 100 100 T 200 200" /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 2);
+
+        match &result.primitives[0] {
+            Primitive::QuadraticBezier(_) => {}
+            _ => panic!("期望第一个二次贝塞尔曲线"),
+        }
+
+        match &result.primitives[1] {
+            Primitive::QuadraticBezier(curve) => {
+                assert_eq!(curve.start.x, 100.0);
+                assert_eq!(curve.start.y, 100.0);
+                // Reflected control point: (100, 100) + ((100, 100) - (50, 50)) = (150, 150)
+                assert_eq!(curve.control.x, 150.0);
+                assert_eq!(curve.control.y, 150.0);
+                assert_eq!(curve.end.x, 200.0);
+                assert_eq!(curve.end.y, 200.0);
+            }
+            _ => panic!("期望平滑二次贝塞尔曲线"),
+        }
+    }
+
+    #[test]
+    fn test_parse_path_elliptical_arc() {
+        let svg = r#"<svg><path d="M 0 0 A 50 30 0 0 1 100 0" /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 1);
+
+        match &result.primitives[0] {
+            Primitive::EllipticalArc(arc) => {
+                assert_eq!(arc.start.x, 0.0);
+                assert_eq!(arc.start.y, 0.0);
+                assert_eq!(arc.rx, 50.0);
+                assert_eq!(arc.ry, 30.0);
+                assert_eq!(arc.x_axis_rotation, 0.0);
+                assert!(!arc.large_arc);
+                assert!(arc.sweep);
+                assert_eq!(arc.end.x, 100.0);
+                assert_eq!(arc.end.y, 0.0);
+            }
+            _ => panic!("期望椭圆弧"),
+        }
+    }
+
+    #[test]
+    fn test_parse_path_arc_large_arc() {
+        let svg = r#"<svg><path d="M 0 0 A 50 30 0 1 1 100 0" /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 1);
+
+        match &result.primitives[0] {
+            Primitive::EllipticalArc(arc) => {
+                assert!(arc.large_arc);
+                assert!(arc.sweep);
+            }
+            _ => panic!("期望椭圆弧"),
+        }
+    }
+
+    #[test]
+    fn test_parse_path_relative_curve() {
+        let svg = r#"<svg><path d="m 0 0 c 10 10 20 20 30 30" /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 1);
+
+        match &result.primitives[0] {
+            Primitive::BezierCurve(curve) => {
+                assert_eq!(curve.start.x, 0.0);
+                assert_eq!(curve.start.y, 0.0);
+                assert_eq!(curve.control1.x, 10.0);
+                assert_eq!(curve.control1.y, 10.0);
+                assert_eq!(curve.control2.x, 20.0);
+                assert_eq!(curve.control2.y, 20.0);
+                assert_eq!(curve.end.x, 30.0);
+                assert_eq!(curve.end.y, 30.0);
+            }
+            _ => panic!("期望贝塞尔曲线"),
+        }
+    }
+
+    #[test]
+    fn test_parse_path_horizontal_relative() {
+        let svg = r#"<svg><path d="M 10 10 h 50" /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_path_vertical_relative() {
+        let svg = r#"<svg><path d="M 10 10 v 30" /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_path_z_command() {
+        let svg = r#"<svg><path d="M 0 0 L 50 0 L 50 50 Z" /></svg>"#;
+        let result = SvgParser::parse_string(svg).unwrap();
+        assert_eq!(result.primitives.len(), 1);
+        match &result.primitives[0] {
+            Primitive::Polygon(poly) => {
+                assert_eq!(poly.vertices.len(), 3);
+            }
+            _ => panic!("期望多边形"),
+        }
+    }
+
+    #[test]
+    fn test_render_svg_to_png_success() {
+        let svg_content = r#"<svg width="50" height="50" xmlns="http://www.w3.org/2000/svg">
+            <rect x="5" y="5" width="40" height="40" fill="red" />
+        </svg>"#;
+
+        let svg_path = "test_render_success.svg";
+        let output_path = "test_render_success_output.png";
+
+        std::fs::write(svg_path, svg_content).unwrap();
+
+        let result = render_svg_to_png(svg_path, output_path, 96);
+
+        let _ = std::fs::remove_file(svg_path);
+        let _ = std::fs::remove_file(output_path);
+
+        assert!(result.is_ok(), "渲染失败：{:?}", result);
+    }
+
+    #[test]
+    fn test_render_svg_to_png_file_not_found() {
+        let result = render_svg_to_png("/nonexistent/file.svg", "output.png", 96);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            SvgRenderError::IoError(e) => assert_eq!(e.kind(), std::io::ErrorKind::NotFound),
+            _ => panic!("期望 IoError"),
+        }
+    }
+
+    #[test]
+    fn test_render_svg_to_png_security() {
+        let svg_content =
+            r#"<svg width="50" height="50"><rect x="0" y="0" width="50" height="50"/></svg>"#;
+
+        let svg_path = "/etc/passwd";
+        std::fs::write(svg_path, svg_content).unwrap_or(());
+
+        let result = render_svg_to_png(svg_path, "output.png", 96);
+
+        let _ = std::fs::remove_file(svg_path);
+
+        assert!(result.is_err());
     }
 }

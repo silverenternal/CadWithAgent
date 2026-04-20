@@ -1,0 +1,17 @@
+{
+  "experiment_name": "Performance Benchmark",
+  "passed": true,
+  "duration_secs": 0.087146468,
+  "metrics": {
+    "index_build_p50_ms": 0.009097,
+    "throughput_n100": 1056367.785008028,
+    "throughput_n500": 223947.6141740924,
+    "point_query_p50_ms": 0.003146,
+    "range_query_p50_ms": 0.003737,
+    "point_query_p95_ms": 0.004168,
+    "nearest_query_p50_ms": 0.120315
+  },
+  "data": {},
+  "errors": [],
+  "timestamp": "Unix timestamp: 1775278238"
+}

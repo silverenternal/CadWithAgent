@@ -20,60 +20,111 @@ path = "src/main.rs"
 
 [dependencies]
 # 核心依赖 - tokitai: AI 工具集成系统
-tokitai = "0.4"
-tokitai-core = "0.4"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-thiserror = "1.0"
-anyhow = "1.0"
+tokitai = "=0.4.0"
+tokitai-core = "=0.4.0"
+
+# tokitai-context: Git 风格上下文管理 (对话状态、错误库、任务规划)
+tokitai-context = { version = "=0.1.2", features = ["core", "wal", "ai"] }
+
+serde = { version = "1.0.210", features = ["derive"] }
+serde_json = "1.0.128"
+thiserror = "1.0.63"
+anyhow = "1.0.89"
 
 # 配置验证
-semver = "1.0"
+semver = "1.0.23"
 
 # SVG 处理
-svg = "0.17"
-roxmltree = "0.20"  # 可靠的 XML 解析，支持命名空间和嵌套结构
-resvg = "0.43"  # SVG 渲染
-tiny-skia = "0.11"  # 图像渲染
-usvg = "0.43"  # SVG 解析
+svg = "0.17.0"
+roxmltree = "0.20.0"  # 可靠的 XML 解析，支持命名空间和嵌套结构
+resvg = "0.43.0"  # SVG 渲染
+tiny-skia = "0.11.4"  # 图像渲染
+usvg = "0.43.0"  # SVG 解析
 
 # DXF 处理
 dxf = "0.6.1"
 
 # 几何计算
-nalgebra = "0.33"
-geo = "0.28"
-rstar = "0.12"
+nalgebra = { version = "0.33.0", features = ["serde-serialize"] }
+geo = "0.28.0"
+rstar = "0.12.2"
+clipper2 = "0.5"
+
+# 稀疏矩阵（约束求解优化）
+sprs = "0.11"
+nalgebra-sparse = "0.10"
 
 # 并行处理
-rayon = "1.10"
+rayon = "1.10.0"
+crossbeam = "0.8"
 
 # 图像处理
-image = "0.25"
+image = "0.25.2"
 
 # CLI
-clap = { version = "4.5", features = ["derive"] }
+clap = { version = "4.5.17", features = ["derive"] }
+
+# Web server (for Web UI API)
+axum = { version = "0.7", features = ["multipart", "ws"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "fs"] }
 
 # 日志
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 
 # HTTP 客户端（VLM API 调用）
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12.7", features = ["json"] }
 
 # 异步支持
-tokio = { version = "1.0", features = ["full"] }
+tokio = { version = "1.40.0", features = ["full"] }
+
+# Async trait for LLMProvider
+async-trait = "0.1"
+
+# Futures for stream support
+futures-core = "0.3"
+futures-util = "0.3"
 
 # LRU 缓存（VLM 响应缓存）
-lru = "0.12"
+lru = "0.12.4"
 
 # 全局静态变量（运行时池）
-once_cell = "1.19"
+once_cell = "1.19.0"
+
+# 优化小集合性能
+smallvec = { version = "1.13.2", features = ["serde"] }
+
+# 位向量优化（DFS 性能）
+bitvec = "1.0"
+
+# 安全性：密钥管理
+secrecy = { version = "0.8", features = ["serde"] }
+
+# UUID for feature IDs
+uuid = { version = "1.10", features = ["v4", "serde"] }
+
+# GPU acceleration (wgpu-based compute and rendering)
+wgpu = "0.20"
+pollster = "0.3"  # For async runtime in tests
+futures-intrusive = "0.5"  # For async buffer mapping
+bytemuck = { version = "1.16", features = ["derive"] }  # For safe casting
+
+# Memory optimization
+bumpalo = "3.16"  # Fast bump allocator for GeometryArena
+
+# Environment variable loading
+dotenvy = "0.15"
 
 [dev-dependencies]
 tempfile = "3.10"
 pretty_assertions = "1.4"
 criterion = "0.5"
+plotters = "0.3"
+num_cpus = "1.16"
+toml = "0.8"
+proptest = "1.4"
+approx = "0.5"
 
 [[bench]]
 name = "geometry_bench"
@@ -83,9 +134,42 @@ harness = false
 name = "reasoning_bench"
 harness = false
 
+[[bench]]
+name = "nurbs_bench"
+harness = false
+
+[[bench]]
+name = "incremental_bench"
+harness = false
+
+[[bench]]
+name = "constraint_bench"
+harness = false
+
+[[bench]]
+name = "large_scale_bench"
+harness = false
+
+[[bench]]
+name = "verifier_bench"
+harness = false
+
+[[bench]]
+name = "metrics_bench"
+harness = false
+
+[[bench]]
+name = "tokitai_context_bench"
+harness = false
+
 [features]
 default = []
 full = []
+ai = []
+
+[[example]]
+name = "step_parsing"
+path = "examples/step_parsing.rs"
 
 [[example]]
 name = "basic_usage"

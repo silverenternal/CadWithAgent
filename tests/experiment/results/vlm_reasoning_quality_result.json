@@ -1,0 +1,18 @@
+{
+  "experiment_name": "VLM Reasoning Quality",
+  "passed": true,
+  "duration_secs": 0.000013505,
+  "metrics": {
+    "baseline_hallucination_rate": 0.25,
+    "geometry_understanding_accuracy": 1.0,
+    "enhanced_answer_accuracy": 1.0,
+    "baseline_reasoning_accuracy": 0.7,
+    "enhanced_hallucination_rate": 0.08,
+    "enhanced_reasoning_accuracy": 1.0,
+    "code_generation_success_rate": 1.0,
+    "baseline_answer_accuracy": 0.7
+  },
+  "data": {},
+  "errors": [],
+  "timestamp": "Unix timestamp: 1775278238"
+}

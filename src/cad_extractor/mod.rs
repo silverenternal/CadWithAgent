@@ -1,4 +1,8 @@
 //! CAD 基元提取工具
+#![allow(clippy::cast_possible_wrap)]
+#![allow(clippy::cast_sign_loss)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::cast_precision_loss)]
 //!
 //! 从 CAD 图纸（SVG/DXF/图像）中提取结构化几何基元
 //!
@@ -23,13 +27,18 @@
 //! ```
 
 use crate::error::{CadAgentError, CadAgentResult, GeometryConfig};
-use crate::geometry::primitives::{Circle, Line, Point, Polygon, Primitive, Rect};
+use crate::geometry::primitives::{
+    BezierCurve, Circle, EllipticalArc, Line, Point, Polygon, Primitive, QuadraticBezier, Rect,
+};
 use crate::parser::svg::{SvgParser, SvgResult};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tokitai::tool;
 
 /// 基元提取结果
+///
+/// 包含从 CAD 文件提取的完整几何信息，包括基元列表、
+/// 统计信息和坐标变换详情。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrimitiveExtractionResult {
     /// 提取的基元列表
@@ -41,20 +50,39 @@ pub struct PrimitiveExtractionResult {
 }
 
 /// 基元统计信息
+///
+/// 统计各类几何基元的数量，用于性能分析和质量控制。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrimitiveStatistics {
+    /// 点数量
     pub point_count: usize,
+    /// 线段数量
     pub line_count: usize,
+    /// 圆数量
     pub circle_count: usize,
+    /// 圆弧数量
     pub arc_count: usize,
+    /// 多边形数量
     pub polygon_count: usize,
+    /// 矩形数量
     pub rect_count: usize,
+    /// 多段线数量
     pub polyline_count: usize,
+    /// 文本数量
     pub text_count: usize,
+    /// 贝塞尔曲线数量
+    pub bezier_count: usize,
+    /// 二次贝塞尔曲线数量
+    pub quadratic_bezier_count: usize,
+    /// 椭圆弧数量
+    pub elliptical_arc_count: usize,
+    /// 总基元数量
     pub total_count: usize,
 }
 
 /// 坐标信息
+///
+/// 记录坐标变换的详细信息，用于坐标系统转换和精度验证。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CoordinateInfo {
     /// 原始坐标范围
@@ -66,6 +94,8 @@ pub struct CoordinateInfo {
 }
 
 /// 坐标范围
+///
+/// 表示几何数据的边界框信息。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CoordRange {
     pub min_x: f64,
@@ -75,6 +105,8 @@ pub struct CoordRange {
 }
 
 /// 变换参数
+///
+/// 记录坐标归一化的缩放和平移参数。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransformParams {
     pub scale_x: f64,
@@ -124,18 +156,22 @@ impl ExtractorConfig {
 
         // 验证最小线段长度
         if self.min_line_length < 0.0 {
-            return Err(CadAgentError::Config(format!(
-                "最小线段长度必须为非负数，当前值：{}",
-                self.min_line_length
-            )));
+            return Err(CadAgentError::config_invalid(
+                "min_line_length",
+                self.min_line_length,
+                "最小线段长度必须为非负数",
+                None,
+            ));
         }
 
         // 验证最小圆半径
         if self.min_circle_radius < 0.0 {
-            return Err(CadAgentError::Config(format!(
-                "最小圆半径必须为非负数，当前值：{}",
-                self.min_circle_radius
-            )));
+            return Err(CadAgentError::config_invalid(
+                "min_circle_radius",
+                self.min_circle_radius,
+                "最小圆半径必须为非负数",
+                None,
+            ));
         }
 
         Ok(())
@@ -204,7 +240,7 @@ impl CadPrimitiveExtractor {
         path: impl AsRef<Path>,
     ) -> CadAgentResult<PrimitiveExtractionResult> {
         let svg_result = SvgParser::parse(path)
-            .map_err(|e| CadAgentError::Parse(format!("SVG 解析失败：{}", e)))?;
+            .map_err(|e| CadAgentError::parse("SVG", format!("SVG 解析失败：{e}")))?;
 
         Ok(self.process_svg_result(svg_result))
     }
@@ -218,7 +254,7 @@ impl CadPrimitiveExtractor {
         content: &str,
     ) -> CadAgentResult<PrimitiveExtractionResult> {
         let svg_result = SvgParser::parse_string(content)
-            .map_err(|e| CadAgentError::Parse(format!("SVG 解析失败：{}", e)))?;
+            .map_err(|e| CadAgentError::parse("SVG", format!("SVG 解析失败：{e}")))?;
 
         Ok(self.process_svg_result(svg_result))
     }
@@ -391,6 +427,32 @@ impl CadPrimitiveExtractor {
                     end_angle,
                 }
             }
+            Primitive::EllipticalArc(arc) => {
+                let start = self.transform_point(arc.start, transform);
+                let end = self.transform_point(arc.end, transform);
+                let rx = arc.rx * transform.scale_x;
+                let ry = arc.ry * transform.scale_y;
+                Primitive::EllipticalArc(EllipticalArc::new(
+                    start,
+                    rx,
+                    ry,
+                    arc.x_axis_rotation,
+                    arc.large_arc,
+                    arc.sweep,
+                    end,
+                ))
+            }
+            Primitive::BezierCurve(curve) => Primitive::BezierCurve(BezierCurve::new(
+                self.transform_point(curve.start, transform),
+                self.transform_point(curve.control1, transform),
+                self.transform_point(curve.control2, transform),
+                self.transform_point(curve.end, transform),
+            )),
+            Primitive::QuadraticBezier(curve) => Primitive::QuadraticBezier(QuadraticBezier::new(
+                self.transform_point(curve.start, transform),
+                self.transform_point(curve.control, transform),
+                self.transform_point(curve.end, transform),
+            )),
             Primitive::Text {
                 content,
                 position,
@@ -413,18 +475,27 @@ impl CadPrimitiveExtractor {
 
     /// 过滤基元
     fn filter_primitives(&self, primitives: Vec<Primitive>) -> Vec<Primitive> {
-        primitives
-            .into_iter()
-            .filter(|p| !self.should_filter(p))
-            .collect()
+        // 预分配容量：假设过滤后保留约 80% 的基元
+        let estimated_capacity = (primitives.len() as f64 * 0.8) as usize;
+        let mut result = Vec::with_capacity(estimated_capacity.max(16));
+        for p in primitives {
+            if !self.should_filter(&p) {
+                result.push(p);
+            }
+        }
+        result
     }
 
     /// 判断是否应该过滤
     fn should_filter(&self, prim: &Primitive) -> bool {
+        #[allow(clippy::match_same_arms)]
         match prim {
             Primitive::Line(line) => line.length() < self.config.min_line_length,
             Primitive::Circle(circle) => circle.radius < self.config.min_circle_radius,
             Primitive::Text { .. } => self.config.filter_text,
+            Primitive::BezierCurve(_)
+            | Primitive::QuadraticBezier(_)
+            | Primitive::EllipticalArc(_) => false,
             _ => false,
         }
     }
@@ -440,6 +511,9 @@ impl CadPrimitiveExtractor {
             rect_count: 0,
             polyline_count: 0,
             text_count: 0,
+            bezier_count: 0,
+            quadratic_bezier_count: 0,
+            elliptical_arc_count: 0,
             total_count: primitives.len(),
         };
 
@@ -453,6 +527,9 @@ impl CadPrimitiveExtractor {
                 Primitive::Rect(_) => stats.rect_count += 1,
                 Primitive::Polyline { .. } => stats.polyline_count += 1,
                 Primitive::Text { .. } => stats.text_count += 1,
+                Primitive::BezierCurve(_) => stats.bezier_count += 1,
+                Primitive::QuadraticBezier(_) => stats.quadratic_bezier_count += 1,
+                Primitive::EllipticalArc(_) => stats.elliptical_arc_count += 1,
             }
         }
 
@@ -504,7 +581,7 @@ impl CadExtractorTools {
                 Ok(result) => self.result_to_json(result),
                 Err(e) => serde_json::json!({
                     "success": false,
-                    "error": e
+                    "error": e.to_string()
                 }),
             }
         } else {
@@ -513,7 +590,7 @@ impl CadExtractorTools {
                 Ok(result) => self.result_to_json(result),
                 Err(e) => serde_json::json!({
                     "success": false,
-                    "error": e
+                    "error": e.to_string()
                 }),
             }
         }

@@ -96,9 +96,13 @@ impl Default for QaTemplate {
 
 impl QaTemplate {
     pub fn format_question(&self, element: &str, attribute: &str) -> String {
-        self.question_patterns[0]
-            .replace("{element}", element)
-            .replace("{attribute}", attribute)
+        self.question_patterns.first().map_or_else(
+            || format!("What is the {attribute} of the {element}?"),
+            |p| {
+                p.replace("{element}", element)
+                    .replace("{attribute}", attribute)
+            },
+        )
     }
 
     pub fn format_answer(
@@ -108,11 +112,15 @@ impl QaTemplate {
         attribute: &str,
         value: &str,
     ) -> String {
-        self.answer_patterns[0]
-            .replace("{thinking}", thinking)
-            .replace("{element}", element)
-            .replace("{attribute}", attribute)
-            .replace("{value}", value)
+        self.answer_patterns.first().map_or_else(
+            || format!("Based on calculation, the {attribute} of the {element} is {value}."),
+            |p| {
+                p.replace("{thinking}", thinking)
+                    .replace("{element}", element)
+                    .replace("{attribute}", attribute)
+                    .replace("{value}", value)
+            },
+        )
     }
 }
 
