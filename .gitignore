@@ -51,6 +51,7 @@ test_output/
 *.dxf
 *.png
 *.svg
+!tests/fixtures/*.svg
 *.jpg
 *.jpeg
 *.gif
